@@ -1,5 +1,6 @@
 export type ActivityRecordIssueCode =
   | 'missing-id'
+  | 'duplicate-id'
   | 'duplicate-field'
   | 'missing-occurred-at'
   | 'invalid-occurred-at'
@@ -257,9 +258,28 @@ function parseSectionRecords(
   return { records, issues }
 }
 
+function markDuplicateIds(records: ActivityRecord[]): ActivityRecord[] {
+  const counts = new Map<string, number>()
+  for (const record of records) {
+    if (record.id) counts.set(record.id, (counts.get(record.id) ?? 0) + 1)
+  }
+
+  return records.map(record => {
+    if (!record.id || counts.get(record.id) === 1) return record
+    return {
+      ...record,
+      key: `offset:${record.start}`,
+      valid: false,
+      editable: false,
+      issues: [...record.issues, issue('duplicate-id', 1)],
+    }
+  })
+}
+
 export function parseActivityDocument(markdown: string): ActivityDocument {
   const lines = splitSourceLines(markdown)
   const section = findActivitySection(lines, markdown.length)
   if (!section) return { section: null, records: [], issues: [] }
-  return { section, ...parseSectionRecords(lines, section) }
+  const parsed = parseSectionRecords(lines, section)
+  return { section, issues: parsed.issues, records: markDuplicateIds(parsed.records) }
 }
