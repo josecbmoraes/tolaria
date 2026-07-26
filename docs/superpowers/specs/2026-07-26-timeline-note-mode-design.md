@@ -1,12 +1,14 @@
 # Activity Timeline Note Mode Design
 
 **Date:** 2026-07-26
-**Status:** Revised after embed spike; awaiting final confirmation
+**Status:** Approved for implementation
 **Product:** Tolaria / Line concept validation
 
 ## Purpose
 
 Add a second way to work with an existing Markdown note without changing Tolaria's local-first, files-first architecture. A Markdown note remains the only source of truth. The existing Note mode keeps its current behavior, while Timeline mode provides structured creation, display, editing, and deletion of chronological updates stored in the same file.
+
+Activity is complementary to the note body. It records chronological occurrences; it does not replace, derive, summarize, or assume ownership of the ordinary Markdown body. The body remains the user's surface for context, documentation, and durable knowledge, and keeps all existing editing behavior.
 
 This first increment validates only the Timeline experience inside an open note. It deliberately excludes vault-wide follow-up discovery and analytics.
 
@@ -364,7 +366,7 @@ No Rust vault-entry or scanner code, note-list filtering code, or analytics code
 The increment is complete when:
 
 1. An ordinary Markdown note can switch between Note and Timeline.
-2. Existing Note behavior remains available and Timeline events are visible as compact read-only durable blocks.
+2. Existing Note behavior remains available; the ordinary body remains the surface for context, documentation, and durable knowledge, while Activity records are visible as compact read-only durable blocks.
 3. RAW shows the complete `## Activity` section and fenced sources.
 4. A user can create an event with occurrence date/time and optional follow-up.
 5. New events append as `type: update` records to the end of the Activity section.
