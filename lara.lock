@@ -647,6 +647,12 @@ files:
     noteList.changes.cancel: ea4788705e6873b424c65e91c2846b19
     editor.empty.selectNote: a71ec7c80aefe49c59f6aba033bf453e
     editor.empty.shortcuts: 1133fdf3ecef6a09dd9e2a185e1bd4ec
+    editor.activity.editInTimeline: 51990f371c0cb92cb6ef8c45d4ad800f
+    editor.activity.editInRaw: 872cc231d4bc9892d6d30c272196ebfd
+    editor.activity.followUp: b9c20d1b9fc0b3085809fa8376a50725
+    editor.activity.malformedTitle: 332131ed54fd731ce5eb23f4c679aff3
+    editor.activity.malformedRawOnly: f7d81926896d77668aab0a95fbe87c72
+    editor.activity.unknownType: 623c36f41cf727361d0977792ed46958
     editor.raw.label: 7a9754c15264b0604aa31dfea32321ea
     editor.sheet.loading: 59df3a3f0bb3834a820e8fbf6a515114
     editor.sheet.unavailable: f0920deeec857fa2251bb073b956364e

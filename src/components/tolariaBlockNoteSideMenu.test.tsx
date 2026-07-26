@@ -453,6 +453,19 @@ describe('TolariaSideMenu', () => {
     mockSuggestionMenu = { openSuggestionMenu: vi.fn() }
   })
 
+  it('hides every side-menu affordance for durable line records', () => {
+    renderSideMenuWithBlock({
+      id: 'activity-record',
+      type: 'lineRecordBlock',
+      content: undefined,
+      children: [],
+    })
+
+    expect(screen.queryByTestId('side-menu')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Drag block' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add block' })).not.toBeInTheDocument()
+  })
+
   afterEach(() => {
     cleanup()
     document.elementsFromPoint = originalElementsFromPoint
