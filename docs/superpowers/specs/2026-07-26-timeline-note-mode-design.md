@@ -1,7 +1,7 @@
-# Timeline Note Mode Design
+# Activity Timeline Note Mode Design
 
 **Date:** 2026-07-26
-**Status:** Approved design scope; implementation pending
+**Status:** Revised after embed spike; awaiting final confirmation
 **Product:** Tolaria / Line concept validation
 
 ## Purpose
@@ -15,14 +15,14 @@ This first increment validates only the Timeline experience inside an open note.
 The increment includes:
 
 - a `Note | Timeline` mode switch for ordinary Markdown notes;
-- a durable, visible, read-only BlockNote block for each `line-event`;
+- a durable, visible, read-only BlockNote block for each `line-record`;
 - creation of an update with an editable occurrence date and time;
 - one optional follow-up date and time per update;
 - chronological visual sorting without changing file order;
 - structured editing and deletion in Timeline mode only;
 - immediate persistence through Tolaria's existing save coordination;
 - lossless event round-trips among Note, RAW, and Timeline modes;
-- tolerant handling of malformed `line-event` blocks.
+- tolerant handling of malformed or unsupported `line-record` blocks.
 
 This increment excludes:
 
@@ -36,6 +36,16 @@ This increment excludes:
 
 The excluded discovery and analytics features form a separate second increment after the note-level experience is validated.
 
+## BlockNote Embed Spike
+
+The spike inspected the installed BlockNote 0.46.2 implementation rather than assuming a generic embed API exists. BlockNote's built-in “embed” behavior is the URL-backed file/media family: `file`, `audio`, `video`, and `image`. Those blocks use `content: none`, but their schemas are oriented around properties such as URL, filename, caption, preview state, and media dimensions. Their parse and export behavior uses HTML media elements, embeds, figures, and links.
+
+That infrastructure does not provide a generic local-data embed with a caller-owned Markdown parser or byte-preserving fenced-source serializer. Adapting a file/media embed for Line records would still require replacing its props, parser, renderer, external representation, and Markdown round-trip behavior while inheriting unrelated upload and URL semantics.
+
+BlockNote does provide the lower-level custom block primitive needed here: a `content: none` block created through `createReactBlockSpec`, with metadata such as `selectable: false`. Tolaria already combines that primitive with its durable fenced-block codec for Mermaid, tldraw, and HTML.
+
+**Verdict:** keep the planned custom durable block. A built-in embed does not reduce the implementation surface or meet the exact-source requirement. The durable block reuses more of Tolaria's proven infrastructure and has the narrower behavioral contract.
+
 ## Existing Architecture Constraints
 
 Tolaria's rich editor serializes the BlockNote document back to Markdown while retaining frontmatter from the current tab. Ordinary HTML comments are not part of the current durable-block pipeline, so comment-delimited events could be lost during a rich-editor save.
@@ -46,15 +56,16 @@ Timeline writes must pass through the current tab state, autosave coordination, 
 
 ## Markdown Representation
 
-### Canonical event
+### Canonical update record
 
-Each event is a fenced `line-event` block below an explicit level-two `Timeline` heading:
+Each event is a fenced `line-record` block below an explicit, neutral level-two `Activity` heading:
 
 ````markdown
-## Timeline
+## Activity
 
-```line-event
+```line-record
 id: 97ea0194-fda7-4bdd-972d-c98dbb58f8b9
+type: update
 occurred_at: 2026-07-26T14:35:00-03:00
 follow_up_at: 2026-07-27T09:00:00-03:00
 ---
@@ -64,25 +75,27 @@ Ele demonstrou interesse e possui disponibilidade.
 ```
 ````
 
-`id`, `occurred_at`, and the `---` metadata/content separator are required. `follow_up_at` is omitted when absent. The content after the separator is Markdown and may contain multiple lines.
+`id`, `occurred_at`, and the `---` metadata/content separator are required. `type` is optional when reading and defaults to `update`; newly created records write `type: update` explicitly. `follow_up_at` is omitted when absent. The content after the separator is Markdown and may contain multiple lines.
+
+This increment supports structured operations only for `type: update`. A future unknown `type` is retained as an unsupported durable record, displayed read-only, and repairable only through RAW. It is never coerced to `update` or deleted. This reserves the format for future record kinds without expanding the current product scope.
 
 New IDs use `crypto.randomUUID()` through an injectable ID factory so tests remain deterministic and no dependency is added. Occurrence and follow-up values use ISO 8601 with the user's current local UTC offset, for example `2026-07-26T14:35:00-03:00`.
 
 The serializer selects an outer backtick fence longer than any backtick run that would close the event prematurely. This permits event content to contain fenced Markdown code examples while keeping the note valid Markdown.
 
-### Timeline section boundary
+### Activity section boundary
 
-The parser recognizes the first exact ATX heading `## Timeline` that occurs outside a fenced code block. The Timeline section continues until the next H1 or H2 heading outside a fence, or until the end of the document.
+The parser recognizes the first exact ATX heading `## Activity` that occurs outside a fenced code block. The Activity section continues until the next H1 or H2 heading outside a fence, or until the end of the document.
 
-Only `line-event` fences within that section become durable timeline blocks. A `line-event` fence outside the section remains an ordinary code block. A heading that looks like `## Timeline` inside another fence is ignored.
+Only `line-record` fences within that section become durable Line record blocks. A `line-record` fence outside the section remains an ordinary code block. A heading that looks like `## Activity` inside another fence is ignored.
 
-When the first event is created in a note without a Timeline section, Tolaria appends two line breaks as needed, the `## Timeline` heading, and the event to the end of the document. New events are always appended to the end of the existing Timeline section, immediately before its closing H1/H2 boundary when one exists. The UI never inserts an event among ordinary note paragraphs.
+When the first event is created in a note without an Activity section, Tolaria appends two line breaks as needed, the `## Activity` heading, and the record to the end of the document. New records are always appended to the end of the existing Activity section, immediately before its closing H1/H2 boundary when one exists. The UI never inserts a record among ordinary note paragraphs.
 
 ### File order
 
 File order is stable:
 
-- creating an event appends it to the end of the Timeline section;
+- creating an event appends its record to the end of the Activity section;
 - editing replaces only the source range of the matching ID;
 - deleting removes only the source range of the matching ID and its owned separator whitespace;
 - visual sorting never rewrites or reorders event blocks;
@@ -93,6 +106,7 @@ File order is stable:
 ```ts
 type TimelineEntry = {
   id: string
+  type: string
   occurredAt: string
   followUpAt: string | null
   content: string
@@ -129,12 +143,13 @@ Mutations identify events by stable ID, then replace source ranges. A missing ID
 
 ### Block contract
 
-The custom BlockNote type is `timelineEventBlock`. It has no editable inline content and carries a retained source plus parsed display fields:
+The custom BlockNote type is `lineRecordBlock`. It has no editable inline content and carries a retained source plus parsed display fields:
 
 ```ts
-type TimelineEventBlockProps = {
+type LineRecordBlockProps = {
   source: string
   id: string
+  recordType: string
   occurredAt: string
   followUpAt: string
   content: string
@@ -143,26 +158,26 @@ type TimelineEventBlockProps = {
 }
 ```
 
-For an unmodified event, `source` is the exact fenced block read from the note, including fence length, metadata spacing, line endings, field order, and final newline. Serializing the rich editor returns that exact source byte for byte. Only a successful structured edit in Timeline mode replaces the target event with canonical source.
+For an unmodified record, `source` is the exact fenced block read from the note, including fence length, metadata spacing, line endings, field order, and final newline. Serializing the rich editor returns that exact source byte for byte. Only a successful structured edit in Timeline mode replaces the target update with canonical source.
 
 ### Parsing pipeline
 
 The rich-editor preprocessing sequence is:
 
-1. locate the Timeline section with a fence-aware scan;
-2. locate each closed `line-event` fence in that section;
+1. locate the Activity section with a fence-aware scan;
+2. locate each closed `line-record` fence in that section;
 3. capture its exact source and best-effort parsed fields;
 4. replace the source with an encoded opaque Tolaria token;
 5. allow the existing BlockNote Markdown parser to parse the document;
-6. replace the token paragraph with a `timelineEventBlock`.
+6. replace the token paragraph with a `lineRecordBlock`.
 
-Timeline preprocessing is section-aware and runs alongside the existing durable codecs. The Timeline codec does not reinterpret arbitrary BlockNote code blocks, which prevents `line-event` fences outside `## Timeline` from becoming special nodes.
+Activity preprocessing is section-aware and runs alongside the existing durable codecs. The Line record codec does not reinterpret arbitrary BlockNote code blocks, which prevents `line-record` fences outside `## Activity` from becoming special nodes.
 
-The serialization sequence recognizes `timelineEventBlock`, returns its retained `source`, and delegates all other blocks to the existing serializers. The rest of the note therefore remains subject to Tolaria's current round-trip guarantees rather than a new Timeline-specific serializer.
+The serialization sequence recognizes `lineRecordBlock`, returns its retained `source`, and delegates all other blocks to the existing serializers. The rest of the note therefore remains subject to Tolaria's current round-trip guarantees rather than a new Timeline-specific serializer.
 
 ### Rich-editor presentation
 
-A valid event block displays:
+A valid update block displays:
 
 - localized occurrence date and time;
 - rendered event content;
@@ -171,7 +186,7 @@ A valid event block displays:
 
 The block is compact, respects normal and wide note widths, supports light and dark themes, and exposes a visible keyboard focus state on its action.
 
-The event body and metadata are read-only. Timeline blocks are not offered by the slash menu and do not expose edit, delete, transform, or drag controls. Direct-operation guards are limited to targeted Timeline behavior and must not change ordinary BlockNote editing. If a proposed protection mechanism interferes with standard selection, typing, copy, undo, or block navigation, the protection is reduced to the safe custom-block affordances rather than adding a broad transaction filter.
+The record body and metadata are read-only. Line record blocks are not offered by the slash menu and do not expose edit, delete, transform, or drag controls. Direct-operation guards are limited to targeted Line record behavior and must not change ordinary BlockNote editing. If a proposed protection mechanism interferes with standard selection, typing, copy, undo, or block navigation, the protection is reduced to the safe custom-block affordances rather than adding a broad transaction filter.
 
 ### “Edit in timeline” action
 
@@ -214,11 +229,11 @@ Entries are grouped by the local calendar date of `occurredAt`. The default disp
 
 Sorting operates on a derived in-memory array. It never changes parsed entries, source ranges, tab content, or physical block order in Markdown.
 
-Each valid entry displays occurrence time, rendered content, optional follow-up, Edit, and Delete actions. Empty Timeline sections and notes without Timeline sections show the localized empty state.
+Each valid update displays occurrence time, rendered content, optional follow-up, Edit, and Delete actions. Empty Activity sections and notes without Activity sections show the localized empty state.
 
 Editing loads the selected event into an edit form. Saving replaces only that event's source range and retains its ID and physical position. `Esc` cancels editing without changing Markdown.
 
-Deletion requires confirmation through the existing shadcn dialog pattern. A confirmed deletion removes only the selected valid event. The `## Timeline` heading may remain as an empty section.
+Deletion requires confirmation through the existing shadcn dialog pattern. A confirmed deletion removes only the selected valid update. The `## Activity` heading may remain as an empty section.
 
 ## Persistence and Concurrency
 
@@ -238,13 +253,13 @@ Each async mutation is bound to the active note path and expected source snapsho
 
 ## Malformed and Unknown Content
 
-A closed `line-event` fence in the Timeline section becomes a durable block even when its metadata or content separator is invalid. The parser records errors while retaining the complete source.
+A closed `line-record` fence in the Activity section becomes a durable block even when its metadata or content separator is invalid, or its explicit `type` is unsupported. The parser records errors while retaining the complete source.
 
-In Note mode, a malformed block appears as a compact read-only warning with an action to open RAW. In Timeline mode, malformed blocks appear in source order with their errors. They cannot be structurally edited or deleted there; RAW is the only repair surface.
+In Note mode, a malformed or unsupported block appears as a compact read-only warning with an action to open RAW. In Timeline mode, malformed and unsupported blocks appear in source order with their errors. They cannot be structurally edited or deleted there; RAW is the only repair surface.
 
-An unclosed `line-event` fence is treated as unknown ordinary Markdown because its safe boundary cannot be determined. It is reported by the Timeline parser but is not extracted, normalized, or deleted.
+An unclosed `line-record` fence is treated as unknown ordinary Markdown because its safe boundary cannot be determined. It is reported by the Timeline parser but is not extracted, normalized, or deleted.
 
-Unknown fences, headings, comments, and ordinary Markdown inside the Timeline section are preserved. Timeline mutations operate only on recognized valid event ranges and never rebuild the entire section.
+Unknown fences, headings, comments, and ordinary Markdown inside the Activity section are preserved. Timeline mutations operate only on recognized valid `update` record ranges and never rebuild the entire section.
 
 ## Error Handling
 
@@ -269,13 +284,16 @@ Implementation follows red-green-refactor cycles.
 
 ### Parser and mutation tests
 
-- note without a Timeline section;
-- empty Timeline section;
+- note without an Activity section;
+- empty Activity section;
 - first creation appends the section at document end;
 - new events append to the end of an existing section;
 - section ending at a later H1 or H2;
 - headings inside fences ignored;
-- `line-event` outside Timeline remains ordinary Markdown;
+- `line-record` outside Activity remains ordinary Markdown;
+- missing `type` defaults to `update`;
+- newly serialized records include `type: update`;
+- unsupported future record type is preserved and remains RAW-only;
 - valid event with and without follow-up;
 - multiline and formatted Markdown content;
 - content containing fenced code with dynamic outer fencing;
@@ -284,11 +302,11 @@ Implementation follows red-green-refactor cycles.
 - edit by ID preserves physical position;
 - deletion by ID removes only its owned range;
 - duplicate and missing IDs do not mutate content;
-- CRLF and original event source preservation;
+- CRLF and original record source preservation;
 - malformed closed block preservation;
 - unclosed block preservation;
 - unknown content inside the section preservation;
-- unchanged event sources remain byte-identical after other events change;
+- unchanged record sources remain byte-identical after other updates change;
 - visual sorting does not alter Markdown.
 
 ### Durable round-trip tests
@@ -297,10 +315,10 @@ Implementation follows red-green-refactor cycles.
 - Note → Timeline → Note;
 - RAW → Timeline → RAW;
 - repeated Note/RAW/Timeline switching without edits;
-- saving ordinary note text leaves event sources unchanged;
+- saving ordinary note text leaves record sources unchanged;
 - valid and malformed blocks survive rich-editor serialization;
 - existing durable Mermaid, tldraw, and HTML blocks continue to round-trip;
-- ordinary `line-event` fences outside Timeline remain ordinary code blocks.
+- ordinary `line-record` fences outside Activity remain ordinary code blocks.
 
 ### Component and interaction tests
 
@@ -315,7 +333,7 @@ Implementation follows red-green-refactor cycles.
 - edit keeps ID and file position;
 - `Esc` cancels editing;
 - deletion confirmation and cancellation;
-- empty state and old note without Timeline;
+- empty state and old note without an Activity section;
 - malformed block warning and RAW repair action;
 - persistence failure retains draft values;
 - focus restoration and `Cmd/Ctrl+Enter`;
@@ -347,16 +365,16 @@ The increment is complete when:
 
 1. An ordinary Markdown note can switch between Note and Timeline.
 2. Existing Note behavior remains available and Timeline events are visible as compact read-only durable blocks.
-3. RAW shows the complete `## Timeline` section and fenced sources.
+3. RAW shows the complete `## Activity` section and fenced sources.
 4. A user can create an event with occurrence date/time and optional follow-up.
-5. New events append to the end of the Timeline section.
+5. New events append as `type: update` records to the end of the Activity section.
 6. A user can visually sort events in either direction without changing Markdown order.
 7. A user can edit a valid event without changing its ID or physical position.
 8. A user can delete a valid event after confirmation.
 9. Creation, editing, and deletion persist through the existing coordinated save path.
 10. Closing and reopening the note retains all events.
-11. Unmodified event source is preserved byte for byte across Note, RAW, and Timeline round-trips.
-12. Malformed blocks are preserved and signaled, and can be repaired only in RAW.
-13. Notes without Timeline continue to open and save normally.
+11. Unmodified record source is preserved byte for byte across Note, RAW, and Timeline round-trips.
+12. Malformed and unsupported record blocks are preserved and signaled, and can be repaired only in RAW.
+13. Notes without an Activity section continue to open and save normally.
 14. No database, backend, scanner field, `VaultEntry` field, global follow-up filter, global follow-up sort, or PostHog event is added.
 15. New and existing release gates pass, and the verified work is pushed directly to `origin/main` without bypassing hooks.
