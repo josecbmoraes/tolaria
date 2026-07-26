@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { translate, type AppLocale } from '../../lib/i18n'
-import type { ActivityRecordInput } from '../../utils/activityDocument'
+import type { ActivityRecordInput } from '../../utils/activityDocumentMutations'
 import { Button } from '../ui/button'
 import { Textarea } from '../ui/textarea'
 import { ActivityDateTimeField } from './ActivityDateTimeField'
@@ -18,6 +18,7 @@ export function ActivityComposer({
   onSubmit: (input: Omit<ActivityRecordInput, 'id'>) => void
 }) {
   const initialNow = new Date()
+  const contentId = useId()
   const [content, setContent] = useState('')
   const [occurredDate, setOccurredDate] = useState(initialNow)
   const [occurredTime, setOccurredTime] = useState(localTime(initialNow))
@@ -53,9 +54,10 @@ export function ActivityComposer({
     <section className="rounded-lg border border-border bg-card p-4">
       <h2 className="m-0 text-sm font-semibold">{translate(locale, 'editor.activity.newUpdate')}</h2>
       <div className="mt-3 grid gap-3">
-        <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+        <label htmlFor={contentId} className="grid gap-1 text-xs font-medium text-muted-foreground">
           {translate(locale, 'editor.activity.contentLabel')}
           <Textarea
+            id={contentId}
             ref={contentRef}
             value={content}
             placeholder={translate(locale, 'editor.activity.contentPlaceholder')}

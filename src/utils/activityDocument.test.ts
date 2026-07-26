@@ -233,7 +233,7 @@ describe('Activity document mutations', () => {
   })
 
   it('edits only the selected source while preserving its file order and unknown metadata', () => {
-    const firstSource = [
+    const firstSource = `${[
       '```line-record',
       'id: first',
       'type: update',
@@ -241,7 +241,7 @@ describe('Activity document mutations', () => {
       '---',
       'First',
       '```',
-    ].join('\r\n') + '\r\n'
+    ].join('\r\n')}\r\n`
     const secondSource = [
       '~~~~line-record',
       'id: second',

@@ -29,12 +29,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function readPayload(value: unknown): LineRecordPayload | null {
   if (!isRecord(value)) return null
-  const keys: Array<keyof LineRecordPayload> = [
-    'source', 'id', 'recordType', 'occurredAt', 'followUpAt',
-    'body', 'valid', 'editable', 'errors',
-  ]
-  if (!keys.every(key => typeof value[key] === 'string')) return null
-  return Object.fromEntries(keys.map(key => [key, value[key]])) as LineRecordPayload
+  const { source, id, recordType, occurredAt, followUpAt, body, valid, editable, errors } = value
+  if (
+    typeof source !== 'string'
+    || typeof id !== 'string'
+    || typeof recordType !== 'string'
+    || typeof occurredAt !== 'string'
+    || typeof followUpAt !== 'string'
+    || typeof body !== 'string'
+    || typeof valid !== 'string'
+    || typeof editable !== 'string'
+    || typeof errors !== 'string'
+  ) return null
+  return { source, id, recordType, occurredAt, followUpAt, body, valid, editable, errors }
 }
 
 function payloadFromRecord(record: ActivityRecord): LineRecordPayload {

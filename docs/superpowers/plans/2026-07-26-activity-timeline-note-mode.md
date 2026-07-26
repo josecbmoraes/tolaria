@@ -6,7 +6,7 @@
 
 **Architecture:** Treat `## Activity` as a bounded document region parsed by a pure TypeScript domain module. Inside that region, closed `line-record` fences enter the existing durable Markdown codec pipeline and become a non-editable `lineRecordBlock`; outside it they remain ordinary code fences. Timeline mutations patch the original Markdown by source offsets and feed the result through the editor's existing `onContentChange`/save coordinator, while untouched record sources remain byte-for-byte identical.
 
-**Tech Stack:** React 19, TypeScript, BlockNote 0.46, shadcn/ui, Tailwind CSS, Vitest/Testing Library, Playwright, Lara localization, existing Tolaria save coordinator.
+**Tech Stack:** React 19, TypeScript, BlockNote 0.46, shadcn/ui, Tailwind CSS, Vitest/Testing Library, Playwright, app-owned JSON localization with optional Lara assistance, existing Tolaria save coordinator.
 
 ## Global Constraints
 
@@ -19,7 +19,7 @@
 - Unknown `type` values remain visible and preserved but read-only in Timeline and Note modes.
 - `lineRecordBlock` is not available from slash commands or block-type conversion. It has no rich-editor drag handle, delete menu, direct editing, or selection affordance where BlockNote supports that safely.
 - Reuse `MarkdownContent` for record bodies and shadcn components for every interactive control. Use `Calendar + Popover` for dates and shadcn `Input` for time; never add native form elements.
-- All user-facing copy originates in `src/lib/locales/en.json`, then is translated to every `lara.yaml` target with `pnpm l10n:translate` and validated with `pnpm l10n:validate`.
+- All user-facing copy originates in `src/lib/locales/en.json`, exists in every checked-in catalog, and is validated with the mandatory `pnpm l10n:validate` gate. Lara is optional; unavailable credentials, quota, network, or service never block build, tests, commit, push, or release. Use reviewed translations when available and the English source text as the temporary fallback otherwise.
 - Do not implement Rust scanner extraction, `VaultEntry` changes, global follow-up filters/sorting/classification, or PostHog events in this increment.
 - Follow Red → Green → Refactor. Do not weaken existing tests, add suppressions, use `as any`, or lower `.codescene-thresholds`.
 - Before editing any code, complete Task 1's CodeScene and Codacy baselines. Before every commit, repeat touched-file checks and the repository safeguard described in Task 1.
@@ -751,7 +751,7 @@ git commit -m "feat: switch notes between note and timeline"
 **Files:**
 
 - Create: `tests/smoke/activity-timeline-note-mode.spec.ts`
-- Modify: `src/lib/locales/*.json` via Lara
+- Modify: `src/lib/locales/*.json` locally, optionally assisted by Lara
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/ABSTRACTIONS.md`
 
@@ -785,12 +785,13 @@ Run once and expect failure before final wiring/selector adjustments.
 
 - [ ] **Step 2: Translate and validate UI copy**
 
+Optionally run `pnpm l10n:translate` when Lara is available. Independently ensure every checked-in locale contains the new keys, copying the English source text when no reviewed translation is available. Then run:
+
 ```bash
-pnpm l10n:translate
 pnpm l10n:validate
 ```
 
-Expected: every locale in `lara.yaml` contains the new keys, placeholders and product names remain intact, validation passes. Do not hand-author generated locale changes unless Lara identifies a translation that needs correction.
+Expected: every checked-in locale contains the complete English keyset, placeholders and product names remain intact, and validation passes. Lara availability and translation success are informational, not gates.
 
 - [ ] **Step 3: Update architecture documentation**
 

@@ -4,7 +4,9 @@ import { schema } from './editorSchema'
 
 describe('editor schema line records', () => {
   it('registers a contentless durable line record block', () => {
-    const spec = schema.blockSchema[LINE_RECORD_BLOCK_TYPE]
+    const spec = Object.entries(schema.blockSchema)
+      .find(([type]) => type === LINE_RECORD_BLOCK_TYPE)
+      ?.at(1)
 
     expect(spec).toBeDefined()
     expect(spec?.content).toBe('none')

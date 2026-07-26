@@ -7,6 +7,7 @@ import { useEditorTheme } from '../../hooks/useTheme'
 import { deriveEditorContentState } from './editorContentState'
 import type { RawEditorFindRequest } from '../RawEditorFindBar'
 import type { ImageImportError } from '../../hooks/useImageDrop'
+import type { ActivitySurfaceMode } from '../activity/useActivityMode'
 
 export interface Tab {
   entry: VaultEntry
@@ -63,6 +64,14 @@ export interface EditorContentProps {
   onKeepTheirs?: (path: string) => void
   onImageImportError?: (error: ImageImportError) => void
   locale?: AppLocale
+  activityMode: ActivitySurfaceMode
+  showActivityToggle: boolean
+  showTimeline: boolean
+  pendingActivityEditId: string | null
+  onSelectActivityMode: (mode: ActivitySurfaceMode) => void
+  onEditActivityRecord: (id: string) => void
+  onOpenActivityRaw: () => void
+  onActivityEditHandled: () => void
 }
 
 export function useEditorContentModel(props: EditorContentProps) {
@@ -91,7 +100,17 @@ export function useEditorContentModel(props: EditorContentProps) {
     rawMode,
     activeStatus: props.activeStatus,
   }), [activeTab, entries, props.activeStatus, rawMode])
-  const showEditor = !diffMode && showContentEditor
+  const activitySupported = Boolean(activeTab)
+    && !isSheet
+    && !isHtmlPreview
+    && !isNonMarkdownText
+    && !isDeletedPreview
+  const showActivityToggle = props.showActivityToggle
+    && activitySupported
+    && !rawMode
+    && !diffMode
+  const showTimeline = props.showTimeline && showActivityToggle && !rawMode && !diffMode
+  const showEditor = !diffMode && showContentEditor && !showTimeline
   const loadingEntry = !activeTab && activeTabPath
     ? entries.find((entry) => entry.path === activeTabPath) ?? null
     : null
@@ -106,6 +125,8 @@ export function useEditorContentModel(props: EditorContentProps) {
     isDeletedPreview,
     isHtmlPreview,
     isSheet,
+    showActivityToggle,
+    showTimeline,
     effectiveRawMode,
     forceRawMode: isNonMarkdownText || isDeletedPreview,
     showEditor,

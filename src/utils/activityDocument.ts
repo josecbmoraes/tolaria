@@ -54,7 +54,35 @@ type ActivitySection = NonNullable<ActivityDocument['section']>
 
 const ACTIVITY_HEADING = /^ {0,3}##[\t ]+Activity[\t ]*#*[\t ]*$/u
 const SECTION_HEADING = /^ {0,3}#{1,2}(?:[\t ]+|$)/u
-const OFFSET_ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?[+-]\d{2}:\d{2}$/u
+function containsOnlyDigits(value: string, start: number, end: number): boolean {
+  for (let index = start; index < end; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code < 48 || code > 57) return false
+  }
+  return true
+}
+
+function hasOffsetDateTimeShape(value: string): boolean {
+  const includesSeconds = value.length === 25
+  if (!includesSeconds && value.length !== 22) return false
+  const offsetStart = includesSeconds ? 19 : 16
+  const sign = value.charAt(offsetStart)
+  return value.charAt(4) === '-'
+    && value.charAt(7) === '-'
+    && value.charAt(10) === 'T'
+    && value.charAt(13) === ':'
+    && (!includesSeconds || value.charAt(16) === ':')
+    && (sign === '+' || sign === '-')
+    && value.charAt(offsetStart + 3) === ':'
+    && containsOnlyDigits(value, 0, 4)
+    && containsOnlyDigits(value, 5, 7)
+    && containsOnlyDigits(value, 8, 10)
+    && containsOnlyDigits(value, 11, 13)
+    && containsOnlyDigits(value, 14, 16)
+    && (!includesSeconds || containsOnlyDigits(value, 17, 19))
+    && containsOnlyDigits(value, offsetStart + 1, offsetStart + 3)
+    && containsOnlyDigits(value, offsetStart + 4, offsetStart + 6)
+}
 
 function splitSourceLines(markdown: string): SourceLine[] {
   const sources = markdown.match(/[^\n]*(?:\n|$)/gu) ?? []
@@ -100,7 +128,7 @@ function closesFence(line: string, fence: Fence): boolean {
 
 function findClosingFence(lines: SourceLine[], openingIndex: number, fence: Fence): number {
   for (let index = openingIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index]
+    const line = lines.at(index)
     if (line && closesFence(line.text, fence)) return index
   }
   return -1
@@ -139,8 +167,8 @@ function issue(code: ActivityRecordIssueCode, line: number): ActivityRecordIssue
   return { code, line, messageKey: `editor.activity.errors.${code}` }
 }
 
-function isOffsetDateTime(value: string): boolean {
-  return OFFSET_ISO_DATE_TIME.test(value) && Number.isFinite(Date.parse(value))
+export function isOffsetDateTime(value: string): boolean {
+  return hasOffsetDateTimeShape(value) && Number.isFinite(Date.parse(value))
 }
 
 function readMetadata(
@@ -153,7 +181,7 @@ function readMetadata(
   const issues: ActivityRecordIssue[] = []
 
   for (let index = openingIndex + 1; index < separatorIndex; index += 1) {
-    const line = lines[index]
+    const line = lines.at(index)
     if (!line) continue
     metadataLines.push(line.text)
     const colon = line.text.indexOf(':')
@@ -189,11 +217,12 @@ function validateMetadata(
 }
 
 function parseRecord(lines: SourceLine[], openingIndex: number, closingIndex: number): ActivityRecord {
-  const opening = lines[openingIndex]!
-  const closing = lines[closingIndex]!
+  const opening = lines.at(openingIndex)
+  const closing = lines.at(closingIndex)
+  if (!opening || !closing) throw new Error('Activity record bounds are invalid')
   let separatorIndex = -1
   for (let index = openingIndex + 1; index < closingIndex; index += 1) {
-    if (lines[index]?.text === '---') {
+    if (lines.at(index)?.text === '---') {
       separatorIndex = index
       break
     }
@@ -238,12 +267,13 @@ function parseSectionRecords(
   const issues: ActivityRecordIssue[] = []
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]
+    const line = lines.at(index)
     if (!line || line.start < section.bodyStart || line.start >= section.end) continue
     const fence = readFence(line.text)
     if (!fence) continue
     const closingIndex = findClosingFence(lines, index, fence)
-    if (closingIndex < 0 || lines[closingIndex]!.start >= section.end) {
+    const closingLine = lines.at(closingIndex)
+    if (closingIndex < 0 || !closingLine || closingLine.start >= section.end) {
       if (fence.info.trim() === 'line-record') {
         issues.push(issue('unclosed-fence', line.number))
       }

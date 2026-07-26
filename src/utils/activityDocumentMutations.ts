@@ -1,4 +1,4 @@
-import { parseActivityDocument, type ActivityRecord } from './activityDocument'
+import { isOffsetDateTime, parseActivityDocument, type ActivityRecord } from './activityDocument'
 
 export type ActivityRecordInput = {
   id: string
@@ -21,14 +21,12 @@ export class ActivityMutationError extends Error {
   }
 }
 
-const OFFSET_ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?[+-]\d{2}:\d{2}$/u
-
 function newlineFor(markdown: string): '\n' | '\r\n' {
   return markdown.includes('\r\n') ? '\r\n' : '\n'
 }
 
 function validDateTime(value: string): boolean {
-  return OFFSET_ISO_DATE_TIME.test(value) && Number.isFinite(Date.parse(value))
+  return isOffsetDateTime(value)
 }
 
 function assertValidInput(input: ActivityRecordInput): void {
@@ -129,7 +127,7 @@ function patchedMetadata(record: ActivityRecord, patch: ActivityRecordPatch): st
 function firstAndLastSourceLines(source: string): { opening: string; closing: string } {
   const lines = source.split(/\r?\n/u)
   const closingIndex = lines.at(-1) === '' ? lines.length - 2 : lines.length - 1
-  return { opening: lines[0] ?? '```line-record', closing: lines[closingIndex] ?? '```' }
+  return { opening: lines.at(0) ?? '```line-record', closing: lines.at(closingIndex) ?? '```' }
 }
 
 function normalizeBody(content: string, newline: '\n' | '\r\n'): string {

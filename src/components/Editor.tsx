@@ -59,6 +59,7 @@ import { installRichEditorDispatchPerformanceProbe } from './richEditorDispatchP
 import { RICH_EDITOR_BLOCKNOTE_PERFORMANCE_OPTIONS } from './richEditorBlockNoteOptions'
 import { markStartupPhase } from '../lib/startupPerformance'
 import { useTurnCurrentBlockIntoCommand } from './useTurnCurrentBlockIntoCommand'
+import { useActivityMode, type ActivitySurfaceMode } from './activity/useActivityMode'
 import './Editor.css'
 import './EditorTheme.css'
 
@@ -524,6 +525,14 @@ function EditorLayout({
   onUnsupportedAiPaste,
   onImageImportError,
   locale,
+  activityMode,
+  showActivityToggle,
+  showTimeline,
+  pendingActivityEditId,
+  onSelectActivityMode,
+  onEditActivityRecord,
+  onOpenActivityRaw,
+  onActivityEditHandled,
 }: {
   tabs: Tab[]
   activeTabPath: string | null
@@ -602,6 +611,14 @@ function EditorLayout({
   onImageImportError?: ImageImportErrorHandler
   locale?: AppLocale
   onExportPdf?: (source?: NotePdfExportSource) => void
+  activityMode: ActivitySurfaceMode
+  showActivityToggle: boolean
+  showTimeline: boolean
+  pendingActivityEditId: string | null
+  onSelectActivityMode: (mode: ActivitySurfaceMode) => void
+  onEditActivityRecord: (id: string) => void
+  onOpenActivityRaw: () => void
+  onActivityEditHandled: () => void
 }) {
   const activeBinaryTab = activeTab?.entry.fileKind === 'binary' ? activeTab : null
   const showEmptyState = tabs.length === 0 && activeTabPath === null && !isVaultLoading
@@ -673,6 +690,14 @@ function EditorLayout({
               onKeepTheirs={onKeepTheirs}
               onImageImportError={onImageImportError}
               locale={locale}
+              activityMode={activityMode}
+              showActivityToggle={showActivityToggle}
+              showTimeline={showTimeline}
+              pendingActivityEditId={pendingActivityEditId}
+              onSelectActivityMode={onSelectActivityMode}
+              onEditActivityRecord={onEditActivityRecord}
+              onOpenActivityRaw={onOpenActivityRaw}
+              onActivityEditHandled={onActivityEditHandled}
             />
         }
         {(showTableOfContents || !inspectorCollapsed) && <ResizeHandle onResize={onInspectorResize} />}
@@ -724,19 +749,36 @@ function EditorLayout({
 
 type EditorRuntime = ReturnType<typeof useEditorSetup>
 type EditorLayoutProps = Parameters<typeof EditorLayout>[0]
+type ActivityEditorBindings = {
+  activity: ReturnType<typeof useActivityMode>
+  handleToggleDiffExclusive: () => Promise<void>
+  handleToggleRawExclusive: () => void
+  openActivityRaw: () => void
+}
 
 function buildEditorLayoutProps(
   props: EditorProps,
   runtime: EditorRuntime,
   findRequest: RawEditorFindRequest | null,
+  bindings: ActivityEditorBindings,
 ): EditorLayoutProps {
   return {
     ...props,
     ...runtime,
+    handleToggleDiffExclusive: bindings.handleToggleDiffExclusive,
+    handleToggleRawExclusive: bindings.handleToggleRawExclusive,
     activeTabPath: props.activeTabPath,
+    activityMode: bindings.activity.mode,
     defaultAiAgent: props.defaultAiAgent ?? DEFAULT_AI_AGENT,
     defaultAiAgentReady: props.defaultAiAgentReady ?? true,
     findRequest,
+    onActivityEditHandled: bindings.activity.acknowledgePendingEdit,
+    onEditActivityRecord: bindings.activity.editInTimeline,
+    onOpenActivityRaw: bindings.openActivityRaw,
+    onSelectActivityMode: bindings.activity.selectMode,
+    pendingActivityEditId: bindings.activity.pendingEditId,
+    showActivityToggle: true,
+    showTimeline: bindings.activity.showTimeline,
   }
 }
 
@@ -755,14 +797,37 @@ export const Editor = memo(function Editor(props: EditorProps) {
     pendingCommitDiffRequest: props.pendingCommitDiffRequest,
     onPendingCommitDiffHandled: props.onPendingCommitDiffHandled,
     getNoteStatus: props.getNoteStatus,
-    rawToggleRef: props.rawToggleRef,
-    diffToggleRef: props.diffToggleRef,
     onImageImportError: handleImageImportError,
   })
+  const activity = useActivityMode({
+    activePath: props.activeTabPath,
+    diffMode: runtime.diffMode,
+    exitDiffMode: runtime.handleToggleDiffExclusive,
+    exitRawMode: runtime.handleToggleRawExclusive,
+    flushRichContent: runtime.flushPendingEditorChange,
+    rawMode: runtime.rawMode,
+  })
+  const handleToggleRawExclusive = useCallback(() => {
+    activity.beforeEnterRaw()
+    runtime.handleToggleRawExclusive()
+  }, [activity, runtime])
+  const handleToggleDiffExclusive = useCallback(async () => {
+    activity.beforeEnterRaw()
+    await runtime.handleToggleDiffExclusive()
+  }, [activity, runtime])
+  const openActivityRaw = useCallback(() => {
+    activity.beforeEnterRaw()
+    if (!runtime.rawMode) runtime.handleToggleRawExclusive()
+  }, [activity, runtime])
+  const { diffToggleRef, rawToggleRef } = props
+  useEffect(() => {
+    if (rawToggleRef) rawToggleRef.current = handleToggleRawExclusive
+    if (diffToggleRef) diffToggleRef.current = handleToggleDiffExclusive
+  }, [diffToggleRef, handleToggleDiffExclusive, handleToggleRawExclusive, rawToggleRef])
   const findRequest = useEditorFindCommand({
     activeTab: runtime.activeTab,
     findInNoteRef: props.findInNoteRef,
-    handleToggleRawExclusive: runtime.handleToggleRawExclusive,
+    handleToggleRawExclusive,
     rawMode: runtime.rawMode,
   })
   useTurnCurrentBlockIntoCommand({
@@ -775,8 +840,8 @@ export const Editor = memo(function Editor(props: EditorProps) {
   const handleExportPdf = useEditorPdfExport({
     activeTab: runtime.activeTab,
     diffMode: runtime.diffMode,
-    handleToggleDiffExclusive: runtime.handleToggleDiffExclusive,
-    handleToggleRawExclusive: runtime.handleToggleRawExclusive,
+    handleToggleDiffExclusive,
+    handleToggleRawExclusive,
     locale: props.locale,
     onToast: props.onToast,
     pdfExportRef: props.pdfExportRef,
@@ -802,7 +867,12 @@ export const Editor = memo(function Editor(props: EditorProps) {
 
   return (
     <EditorLayout
-      {...buildEditorLayoutProps(props, runtime, findRequest)}
+      {...buildEditorLayoutProps(props, runtime, findRequest, {
+        activity,
+        handleToggleDiffExclusive,
+        handleToggleRawExclusive,
+        openActivityRaw,
+      })}
       onImageImportError={handleImageImportError}
       onToggleInspector={rightPanel.handleToggleInspectorPanel}
       showAIChat={props.showAIChat}

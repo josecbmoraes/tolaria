@@ -737,6 +737,17 @@ Defined in `src/utils/durableMarkdownBlocks.ts`, `src/utils/editorDurableMarkdow
 - Block controls support raw-editor source access, source copy, raw-editor fallback, keyboard/pointer height resize, and height reset without storing session-only UI state outside the Markdown fence.
 - Sandboxed HTML blocks share the durable fenced-block pipeline with Mermaid and tldraw; scanner, token, block injection, and mixed serialization mechanics stay in `src/utils/durableMarkdownBlocks.ts`.
 
+### Activity Timeline Records
+
+Defined in `src/utils/activityDocument.ts`, `src/utils/activityDocumentMutations.ts`, `src/utils/lineRecordMarkdown.ts`, `src/components/activity/ActivityTimelineView.tsx`, `src/components/activity/ActivityRecordNavigationContext.ts`, and the shared durable Markdown pipeline:
+
+- Activity complements the note body: durable context and documentation remain ordinary Markdown, while occurrence records live only below the first fence-aware `## Activity` heading as fenced `line-record` blocks.
+- `activityDocument` is the source model. It recognizes the bounded section, retains exact source spans, validates supported `update` metadata tolerantly, and preserves malformed, unclosed, and unknown-type input for RAW-only repair.
+- `lineRecordMarkdown` converts only closed records inside that section into read-only `lineRecordBlock` nodes. Unchanged nodes serialize their stored `source` byte for byte; fences outside Activity remain ordinary code blocks.
+- `ActivityTimelineView` derives newest-first presentation without moving records in Markdown. Create appends at the physical section end, edit replaces the same source span, and delete removes only the selected record and its owned separator whitespace.
+- `ActivityRecordNavigationContext` is navigation-only: supported rich blocks open their matching structured edit dialog, while malformed and unsupported blocks open RAW. The rich editor exposes no record slash command, drag handle, direct edit, or removal control.
+- Timeline mutations use the existing `onContentChange` and save coordinator. No parallel persistence model, `VaultEntry` field, or Rust scanner state is introduced.
+
 ### Formatting Surface Policy
 
 Defined in `src/components/tolariaEditorFormatting.tsx` and `src/components/tolariaEditorFormattingConfig.ts`:
@@ -858,13 +869,14 @@ The app uses internal light and dark themes owned by Tolaria, with System as an 
 
 ## Localization
 
-App UI strings are resolved through `src/lib/i18n.ts`, with flat JSON catalogs in `src/lib/locales/*.json` (see [ADR-0087](adr/0087-json-catalogs-and-lara-cli-localization.md)):
+App UI strings are resolved through `src/lib/i18n.ts`, with flat JSON catalogs in `src/lib/locales/*.json` (see [ADR-0174](adr/0174-external-translation-services-are-optional.md)):
 
 - `AppLocale`: canonical locale tags such as `'en'`, `'zh-CN'`, `'fr-FR'`, `'es-419'`
 - `UiLanguagePreference`: `'system' | AppLocale`; persisted settings serialize `system` as `null`
 - `resolveEffectiveLocale()`: maps an explicit preference or system/browser language list to the effective supported locale, including legacy aliases
 - `translate()` / `createTranslator()`: resolve keys with English fallback and simple `{name}` interpolation
 - `scripts/validate-locales.mjs`: asserts every checked-in locale catalog matches the English keyset and stays flat-string-only
+- Lara CLI: optional translation assistance only; it is not invoked by required build or release gates, and missing access, quota, network, or service availability cannot block delivery. Catalog maintainers temporarily use the English source text when no reviewed translation is available.
 
 `App.tsx` owns the effective locale and passes it to localized app chrome through props. Settings and command-palette language commands call back into `saveSettings`, so UI language changes update the current session without touching vault content or reopening the vault.
 

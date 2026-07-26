@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { translate, type AppLocale } from '../../lib/i18n'
 import type { ActivityRecord } from '../../utils/activityDocument'
 import type { ActivityRecordPatch } from '../../utils/activityDocumentMutations'
@@ -68,6 +68,7 @@ export function ActivityRecordDialog({
 }) {
   const [draft, setDraft] = useState<ActivityRecordDraft>(() => draftFromRecord(record))
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const contentId = useId()
 
   const save = () => {
     if (!draft.content.trim()) return
@@ -96,9 +97,10 @@ export function ActivityRecordDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            <label htmlFor={contentId} className="grid gap-1 text-xs font-medium text-muted-foreground">
               {translate(locale, 'editor.activity.contentLabel')}
               <Textarea
+                id={contentId}
                 value={draft.content}
                 onChange={event => setDraft(current => ({ ...current, content: event.target.value }))}
               />

@@ -29,13 +29,15 @@ Red → Green → Refactor → Commit. One cycle per commit. For bugs: write fai
 
 ### Localization (mandatory for UI copy)
 
-All user-facing UI labels/copy must live in `src/lib/locales/en.json` and be translated into every target listed in `lara.yaml`. When adding or changing interface copy:
+All user-facing UI labels/copy must live in `src/lib/locales/en.json`, and every checked-in locale catalog must keep the same key structure. `pnpm l10n:validate` is the fail-closed localization gate. When adding or changing interface copy, add the keys to every existing catalog; use a reviewed translation when one is available and temporarily copy the English source text when it is not.
+
+Lara is an optional translation aid, never an operational dependency or release gate:
 
 ```bash
 pnpm l10n:translate
 ```
 
-Use `pnpm l10n:translate:force` only when intentionally regenerating existing translations. Commit `src/lib/locales/*.json`, `lara.yaml`/`lara.lock` changes if produced, and verify placeholders/product names stayed intact.
+Use `pnpm l10n:translate:force` only when intentionally regenerating existing translations. A missing Lara credential, exhausted quota, network failure, or Lara outage must not block build, tests, commit, push, CI, or release. Commit `src/lib/locales/*.json`, `lara.yaml`/`lara.lock` changes if produced, verify placeholders/product names stayed intact, and always run `pnpm l10n:validate`.
 
 ### Product analytics (mandatory for meaningful features)
 
@@ -122,7 +124,7 @@ Before pushing or moving a task to In Review, verify the release gates and add a
 - CodeScene: before/after touched-file checks, the pre-commit safeguard verdict, the final `origin/main` change-set verdict, plus final Hotspot and Average scores after push; every gate must pass `.codescene-thresholds`.
 - Coverage commands passed (`pnpm test:coverage` and `cargo llvm-cov ... --fail-under-lines 85`) or the change is docs-only.
 - Codacy: before/after findings for every touched file; confirm fewer findings (or zero stayed zero), zero findings in new files, and no new findings at any severity.
-- Localization: any user-facing copy lives in `src/lib/locales/en.json`, `pnpm l10n:translate` was run, and `pnpm l10n:validate` passes. If no copy changed, say “Localization: no UI copy changes”.
+- Localization: any user-facing copy lives in `src/lib/locales/en.json`, every existing catalog contains the same keys, and `pnpm l10n:validate` passes. Record whether optional Lara translation was used; its availability or result is not a release gate. If no copy changed, say “Localization: no UI copy changes”.
 - PostHog: meaningful new user actions/events are instrumented with safe metadata; noisy/minor changes explicitly say “PostHog: no event needed because …”.
 - Refactoring: any files refactored to meet the CodeScene gate, or "none needed".
 - ADRs: any new/updated ADRs, or "none".

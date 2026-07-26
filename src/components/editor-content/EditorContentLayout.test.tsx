@@ -1,5 +1,5 @@
 import { createRef } from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { EditorContentLayout } from './EditorContentLayout'
 
@@ -54,6 +54,19 @@ vi.mock('../DiffView', () => ({
   DiffView: () => <div data-testid="diff-view" />,
 }))
 
+vi.mock('../activity/ActivityTimelineView', () => ({
+  ActivityTimelineView: ({ content, onContentChange }: {
+    content: string
+    onContentChange: (content: string) => void
+  }) => (
+    <div data-testid="activity-timeline-view" data-content={content}>
+      <button type="button" onClick={() => onContentChange('Updated Activity Markdown')}>
+        Update Activity
+      </button>
+    </div>
+  ),
+}))
+
 function createModel(overrides: Record<string, unknown> = {}) {
   return {
     activeTab: {
@@ -104,6 +117,14 @@ function createModel(overrides: Record<string, unknown> = {}) {
     onToggleOrganized: vi.fn(),
     onDeleteNote: vi.fn(),
     onArchiveNote: vi.fn(),
+    activityMode: 'note',
+    showActivityToggle: true,
+    showTimeline: false,
+    pendingActivityEditId: null,
+    onSelectActivityMode: vi.fn(),
+    onEditActivityRecord: vi.fn(),
+    onOpenActivityRaw: vi.fn(),
+    onActivityEditHandled: vi.fn(),
     ...overrides,
   } as never
 }
@@ -177,6 +198,41 @@ describe('EditorContentLayout', () => {
       'data-content',
       '---\ntitle: Reference Planning Notes\n---\n\nBody',
     )
+  })
+
+  it('shows Note and Timeline modes for editable Markdown notes', () => {
+    const onSelectActivityMode = vi.fn()
+    render(<EditorContentLayout {...createModel({ onSelectActivityMode })} />)
+
+    expect(screen.getByRole('radio', { name: 'Note' })).toHaveAttribute('data-state', 'on')
+    fireEvent.click(screen.getByRole('radio', { name: 'Timeline' }))
+    expect(onSelectActivityMode).toHaveBeenCalledWith('timeline')
+    expect(screen.getByTestId('single-editor-view')).toBeInTheDocument()
+  })
+
+  it('renders Timeline exclusively and routes mutations through the existing content callback', () => {
+    const onRawContentChange = vi.fn()
+    render(<EditorContentLayout {...createModel({
+      activityMode: 'timeline',
+      showTimeline: true,
+      showEditor: false,
+      onRawContentChange,
+    })} />)
+
+    expect(screen.getByTestId('activity-timeline-view')).toHaveAttribute('data-content', 'Body')
+    expect(screen.queryByTestId('single-editor-view')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('raw-editor-view')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Update Activity' }))
+    expect(onRawContentChange).toHaveBeenCalledWith(
+      '/vault/project/demo.md',
+      'Updated Activity Markdown',
+    )
+  })
+
+  it('does not offer Timeline for unsupported editor surfaces', () => {
+    render(<EditorContentLayout {...createModel({ showActivityToggle: false })} />)
+
+    expect(screen.queryByRole('radio', { name: 'Timeline' })).not.toBeInTheDocument()
   })
 
   it('keeps raw mode out of the rich-editor content wrapper', () => {
