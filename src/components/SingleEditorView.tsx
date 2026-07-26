@@ -56,6 +56,7 @@ import { findNearestTextCursorBlock } from './blockNoteCursorTarget'
 import { ImageLightbox } from './ImageLightbox'
 import { ActionTooltip } from './ui/action-tooltip'
 import { Button } from './ui/button'
+import { ActivityRecordNavigationProvider } from './activity/ActivityRecordNavigationProvider'
 import { VaultExpressionProvider } from './VaultExpressionContext'
 import { subscribeRichEditorExternalChange } from './editorExternalChangeEvents'
 import {
@@ -125,6 +126,8 @@ const TOOLBAR_MOUSE_DOWN_ALLOW_SELECTOR = [
 ].join(', ')
 const MAX_BLOCKNOTE_RENDER_RECOVERY_RETRIES = 1
 const EMOJI_SHORTCODE_RESULT_LIMIT = 80
+const ignoreActivityRecordEdit: (recordId: string) => void = () => {}
+const ignoreOpenActivityRaw = () => {}
 
 type TestTableBlock = {
   type?: string
@@ -1192,13 +1195,15 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
 }
 
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
-export function SingleEditorView({ currentContent = '', editor, entries, onNavigateWikilink, onChange, onImageImportError, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
+export function SingleEditorView({ currentContent = '', editor, entries, onNavigateWikilink, onChange, onImageImportError, onEditActivityRecord = ignoreActivityRecordEdit, onOpenRaw = ignoreOpenActivityRaw, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
   currentContent?: string
   editor: ReturnType<typeof useCreateBlockNote>
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
   onChange?: () => void
+  onEditActivityRecord?: (recordId: string) => void
   onImageImportError?: (error: ImageImportError) => void
+  onOpenRaw?: () => void
   sourceEntry?: VaultEntry | null
   vaultPath?: string
   editable?: boolean
@@ -1310,6 +1315,11 @@ export function SingleEditorView({ currentContent = '', editor, entries, onNavig
     typeEntryMap,
     vaultPath,
   })
+  const activityRecordNavigation = useMemo(() => ({
+    editInTimeline: onEditActivityRecord,
+    locale,
+    openRaw: onOpenRaw,
+  }), [locale, onEditActivityRecord, onOpenRaw])
 
   return (
     <div
@@ -1332,33 +1342,35 @@ export function SingleEditorView({ currentContent = '', editor, entries, onNavig
       )}
       <BlockNoteRenderRecoveryBoundary onRecover={(_, reason) => repairEditorDocumentForRenderRecovery(editor, reason)}>
         {(recoveryKey) => (
-          <VaultExpressionProvider
-            currentContent={currentContent}
-            entries={entries}
-            locale={locale}
-            sourceEntry={sourceEntry ?? null}
-            vaultPath={vaultPath ?? ''}
-          >
-            <SharedContextBlockNoteView
-              key={recoveryKey}
-              editor={editor}
-              theme={themeMode}
-              onChange={handleEditorChange}
-              editable={editable}
-              emojiPicker={false}
-              formattingToolbar={false}
-              linkToolbar={false}
-              slashMenu={false}
-              sideMenu={false}
+          <ActivityRecordNavigationProvider value={activityRecordNavigation}>
+            <VaultExpressionProvider
+              currentContent={currentContent}
+              entries={entries}
+              locale={locale}
+              sourceEntry={sourceEntry ?? null}
+              vaultPath={vaultPath ?? ''}
             >
-              <EditorInteractionControllers
-                {...suggestionMenuItems}
-                locale={locale}
-                runEditorAction={runEditorAction}
-                vaultPath={vaultPath}
-              />
-            </SharedContextBlockNoteView>
-          </VaultExpressionProvider>
+              <SharedContextBlockNoteView
+                key={recoveryKey}
+                editor={editor}
+                theme={themeMode}
+                onChange={handleEditorChange}
+                editable={editable}
+                emojiPicker={false}
+                formattingToolbar={false}
+                linkToolbar={false}
+                slashMenu={false}
+                sideMenu={false}
+              >
+                <EditorInteractionControllers
+                  {...suggestionMenuItems}
+                  locale={locale}
+                  runEditorAction={runEditorAction}
+                  vaultPath={vaultPath}
+                />
+              </SharedContextBlockNoteView>
+            </VaultExpressionProvider>
+          </ActivityRecordNavigationProvider>
         )}
       </BlockNoteRenderRecoveryBoundary>
       {copyTarget && <CodeBlockCopyButton copyTarget={copyTarget} locale={locale} />}
