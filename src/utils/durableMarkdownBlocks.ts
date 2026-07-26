@@ -49,6 +49,12 @@ interface FenceOpening {
   metadata: unknown
 }
 
+interface StructuralFenceOpening {
+  character: FenceCharacter
+  length: number
+  info: string
+}
+
 interface MatchedFenceOpening {
   codec: DurableBlockCodec
   opening: FenceOpening
@@ -122,18 +128,26 @@ function readDurableToken(codec: DurableBlockCodec, text: string): unknown | nul
 }
 
 function readFenceOpening(line: string, codec: DurableBlockCodec): FenceOpening | null {
-  const match = /^( {0,3})(`{3,}|~{3,})[ \t]*(.*)$/.exec(line)
-  if (!match) return null
+  const structural = readStructuralFenceOpening(line)
+  if (!structural) return null
 
-  const metadata = codec.readFenceMetadata(match.at(3) ?? '')
+  const metadata = codec.readFenceMetadata(structural.info)
   if (metadata === null) return null
+  return {
+    character: structural.character,
+    length: structural.length,
+    metadata,
+  }
+}
 
-  const fence = match.at(2)
+function readStructuralFenceOpening(line: string): StructuralFenceOpening | null {
+  const match = /^( {0,3})(`{3,}|~{3,})[ \t]*(.*)$/.exec(line)
+  const fence = match?.at(2)
   if (!fence) return null
   return {
     character: fence.charAt(0) as FenceCharacter,
     length: fence.length,
-    metadata,
+    info: match?.at(3) ?? '',
   }
 }
 
@@ -176,9 +190,22 @@ export function preProcessDurableMarkdownBlocks({
   for (let index = 0; index < lines.length; index++) {
     const line = lines.at(index)
     if (line === undefined) continue
+    const structural = readStructuralFenceOpening(lineText({ line }))
     const matched = readMatchedFenceOpening(lineText({ line }), codecs)
-    if (!matched) {
+    if (!structural) {
       result.push(line)
+      continue
+    }
+
+    if (!matched) {
+      const closingIndex = findClosingFence({
+        lines,
+        start: index,
+        opening: { ...structural, metadata: null },
+      })
+      const opaqueEnd = closingIndex < 0 ? lines.length - 1 : closingIndex
+      result.push(...lines.slice(index, opaqueEnd + 1))
+      index = opaqueEnd
       continue
     }
 
@@ -303,7 +330,24 @@ export function serializeDurableMarkdownBlocks({
   }
 
   flushPending()
-  return chunks.join('\n\n')
+  return joinMarkdownChunks(chunks)
+}
+
+function joinMarkdownChunks(chunks: string[]): string {
+  let markdown = ''
+  for (const chunk of chunks) {
+    if (!markdown) {
+      markdown = chunk
+      continue
+    }
+    const lineEnding = markdown.endsWith('\r\n') ? '\r\n' : '\n'
+    const hasBlankSeparator = markdown.endsWith(lineEnding + lineEnding)
+    const separator = hasBlankSeparator || chunk.startsWith('\n') || chunk.startsWith('\r\n')
+      ? ''
+      : markdown.endsWith(lineEnding) ? lineEnding : lineEnding + lineEnding
+    markdown += separator + chunk
+  }
+  return markdown
 }
 
 export function readCodeBlockLanguage({ block }: { block: BlockLike }): string | null {
