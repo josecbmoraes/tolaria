@@ -62,6 +62,9 @@ CODE-HEALTH-REPORT.md
 # Local home dir artifact from worktree ops
 (HOME)/
 
+# Local isolated development worktrees
+.worktrees/
+
 # Runtime / process files
 .claude-pid
 
