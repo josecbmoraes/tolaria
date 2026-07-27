@@ -24,10 +24,12 @@ import { MATH_BLOCK_TYPE, MATH_INLINE_TYPE, renderMathToHtml } from '../utils/ma
 import { MERMAID_BLOCK_TYPE, mermaidFenceSource } from '../utils/mermaidMarkdown'
 import { TLDRAW_BLOCK_TYPE, TLDRAW_DEFAULT_HEIGHT } from '../utils/tldrawMarkdown'
 import { HTML_BLOCK_DEFAULT_HEIGHT, HTML_BLOCK_TYPE } from '../utils/htmlBlockMarkdown'
+import { LINE_RECORD_BLOCK_TYPE } from '../utils/lineRecordMarkdown'
 import { MARKDOWN_HIGHLIGHT_STYLE } from '../utils/markdownHighlightMarkdown'
 import type { VaultEntry } from '../types'
 import { createTolariaCodeBlockOptions } from './codeBlockOptions'
 import { HtmlBlock } from './HtmlBlock'
+import { LineRecordBlock } from './activity/LineRecordBlock'
 import { NoteTitleIcon } from './NoteTitleIcon'
 import { MermaidDiagram } from './MermaidDiagram'
 import { SafeHtmlSpan } from './SafeMarkup'
@@ -456,9 +458,33 @@ const HtmlBlockSpec = createReactBlockSpec(
   },
 )
 
+const LineRecordBlockSpec = createReactBlockSpec(
+  {
+    type: LINE_RECORD_BLOCK_TYPE,
+    propSchema: {
+      source: { default: '' },
+      id: { default: '' },
+      recordType: { default: 'update' },
+      occurredAt: { default: '' },
+      followUpAt: { default: '' },
+      body: { default: '' },
+      valid: { default: 'false' },
+      editable: { default: 'false' },
+      errors: { default: '[]' },
+    },
+    content: 'none',
+  },
+  {
+    runsBefore: ['codeBlock'],
+    meta: { selectable: false },
+    render: props => <LineRecordBlock block={props.block} />,
+  },
+)
+
 const codeBlock = createCodeBlockSpec(createTolariaCodeBlockOptions())
 const audioBlock = AudioBlockSpec()
 const htmlBlock = HtmlBlockSpec()
+const lineRecordBlock = LineRecordBlockSpec()
 const mathBlock = MathBlock()
 const mermaidBlock = MermaidBlock()
 const tldrawBlock = TldrawBlock()
@@ -498,6 +524,7 @@ export const schema = BlockNoteSchema.create({
     audio: audioBlock,
     calloutBlock,
     htmlBlock,
+    lineRecordBlock,
     mathBlock,
     mermaidBlock,
     tldrawBlock,

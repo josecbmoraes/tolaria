@@ -10,8 +10,63 @@ import {
 import { HTML_BLOCK_DEFAULT_HEIGHT, HTML_BLOCK_TYPE } from './htmlBlockMarkdown'
 import { MERMAID_BLOCK_TYPE } from './mermaidMarkdown'
 import { TLDRAW_BLOCK_TYPE } from './tldrawMarkdown'
+import { LINE_RECORD_BLOCK_TYPE } from './lineRecordMarkdown'
 
 describe('editor durable markdown blocks', () => {
+  it('round-trips scoped Activity records through the full editor pipeline', async () => {
+    const markdown = [
+      '# Project',
+      '',
+      'Durable context remains editable.',
+      '',
+      '## Activity',
+      '',
+      '```line-record',
+      'id: event-1',
+      'type: update',
+      'occurred_at: 2026-07-26T09:30:00-03:00',
+      '---',
+      'Shipped the first slice.',
+      '```',
+      '',
+      '## Decisions',
+      '',
+      'Keep Markdown as the source of truth.',
+    ].join('\n')
+    const editor = BlockNoteEditor.create({ schema })
+    installBlockNoteDirectMarkdown(editor)
+
+    const parsed = await editor.tryParseMarkdownToBlocks(
+      preProcessDurableEditorMarkdown({ markdown }),
+    )
+    const blocks = injectDurableEditorMarkdownBlocks(parsed) as Array<{ type: string }>
+
+    expect(blocks.map(block => block.type)).toContain(LINE_RECORD_BLOCK_TYPE)
+    expect(serializeDurableEditorBlocks(editor, blocks)).toBe(markdown)
+  })
+
+  it('keeps line-record fences outside Activity as ordinary code blocks', async () => {
+    const markdown = [
+      '```line-record',
+      'id: outside',
+      'occurred_at: 2026-07-26T09:30:00-03:00',
+      '---',
+      'Ordinary code.',
+      '```',
+    ].join('\n')
+    const editor = BlockNoteEditor.create({ schema })
+    installBlockNoteDirectMarkdown(editor)
+
+    const parsed = await editor.tryParseMarkdownToBlocks(
+      preProcessDurableEditorMarkdown({ markdown }),
+    )
+    const blocks = injectDurableEditorMarkdownBlocks(parsed) as Array<{ type: string }>
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]?.type).toBe('codeBlock')
+    expect(serializeDurableEditorBlocks(editor, blocks)).toBe(markdown)
+  })
+
   it('round-trips Mermaid and tldraw blocks through one durable pipeline', () => {
     const markdown = [
       'Intro',

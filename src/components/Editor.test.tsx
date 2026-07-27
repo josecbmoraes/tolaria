@@ -91,6 +91,33 @@ describe('Editor', () => {
     expect(screen.getByTestId('blocknote-view')).toBeInTheDocument()
   })
 
+  it('keeps Timeline exclusive with the rich and RAW editors', async () => {
+    resetVaultConfigStore()
+    const rawToggleRef = { current: (() => {}) as () => void }
+
+    renderEditor({
+      tabs: [mockTab],
+      activeTabPath: mockEntry.path,
+      rawToggleRef,
+    })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Timeline' }))
+
+    expect(screen.getByText('New update')).toBeInTheDocument()
+    expect(screen.queryByTestId('blocknote-view')).not.toBeInTheDocument()
+
+    await act(async () => {
+      await rawToggleRef.current()
+    })
+
+    expect(await screen.findByTestId('raw-editor-codemirror')).toBeInTheDocument()
+    expect(screen.queryByText('New update')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Timeline' })).not.toBeInTheDocument()
+    act(() => {
+      resetVaultConfigStore()
+    })
+  })
+
   it('installs direct Markdown serialization on editors without pmSchema', () => {
     renderEditor({
       tabs: [mockTab],

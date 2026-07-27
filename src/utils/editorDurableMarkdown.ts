@@ -21,6 +21,10 @@ import {
 import { htmlBlockMarkdownCodec } from './htmlBlockMarkdown'
 import { mermaidMarkdownCodec } from './mermaidMarkdown'
 import { tldrawMarkdownCodec } from './tldrawMarkdown'
+import {
+  lineRecordMarkdownCodec,
+  preProcessActivityRecordMarkdown,
+} from './lineRecordMarkdown'
 
 const EDITOR_DURABLE_MARKDOWN_CODECS = [
   htmlBlockMarkdownCodec,
@@ -28,9 +32,15 @@ const EDITOR_DURABLE_MARKDOWN_CODECS = [
   tldrawMarkdownCodec,
 ] as const
 
+const EDITOR_DURABLE_INJECTION_CODECS = [
+  lineRecordMarkdownCodec,
+  ...EDITOR_DURABLE_MARKDOWN_CODECS,
+] as const
+
 export function preProcessDurableEditorMarkdown({ markdown }: { markdown: string }): string {
+  const withActivityRecords = preProcessActivityRecordMarkdown(markdown)
   const withDurableBlocks = preProcessDurableMarkdownBlocks({
-    markdown,
+    markdown: withActivityRecords,
     codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
   })
   return preProcessFileAttachmentMarkdown({ markdown: withDurableBlocks })
@@ -39,7 +49,7 @@ export function preProcessDurableEditorMarkdown({ markdown }: { markdown: string
 export function injectDurableEditorMarkdownBlocks(blocks: unknown[]): unknown[] {
   const withDurableBlocks = injectDurableMarkdownBlocks({
     blocks,
-    codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
+    codecs: EDITOR_DURABLE_INJECTION_CODECS,
   })
   return injectFileAttachmentBlocks(withDurableBlocks)
 }
@@ -84,7 +94,7 @@ export function serializeDurableEditorBlocks(
     vaultPath,
     serializeOrdinaryBlocks: ordinaryBlocks => serializeDurableMarkdownBlocks({
       blocks: ordinaryBlocks,
-      codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
+      codecs: EDITOR_DURABLE_INJECTION_CODECS,
       serializeOrdinaryBlocks: durableOrdinaryBlocks => serializeCalloutAndMathAwareBlocks(
         editor,
         durableOrdinaryBlocks,
@@ -96,6 +106,6 @@ export function serializeDurableEditorBlocks(
 export function hasDurableEditorBlocks(blocks: unknown[]): boolean {
   return hasCalloutBlocks(blocks) || hasFileAttachmentBlocks(blocks) || hasDurableMarkdownBlocks({
     blocks,
-    codecs: EDITOR_DURABLE_MARKDOWN_CODECS,
+    codecs: EDITOR_DURABLE_INJECTION_CODECS,
   })
 }

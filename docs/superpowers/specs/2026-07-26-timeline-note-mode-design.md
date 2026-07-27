@@ -276,7 +276,7 @@ Unknown fences, headings, comments, and ordinary Markdown inside the Activity se
 
 ## Localization and Accessibility
 
-All new user-facing strings originate in `src/lib/locales/en.json`, are translated through Lara into every configured locale, and pass `pnpm l10n:validate`.
+All new user-facing strings originate in `src/lib/locales/en.json`, exist in every checked-in locale catalog, and pass `pnpm l10n:validate`. Lara may optionally provide translations, but unavailable credentials, quota, network, or service must not block this implementation; when no reviewed translation is available, the locale temporarily uses the English source text.
 
 All controls use shadcn components. Labels, descriptions, dialog text, errors, sorting controls, and empty states are accessible by keyboard and screen reader. Focus moves deliberately after creation, edit activation, edit cancellation, deletion confirmation, and mode switching.
 

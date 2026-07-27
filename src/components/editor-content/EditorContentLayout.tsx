@@ -12,6 +12,9 @@ import { ArchivedNoteBanner } from '../ArchivedNoteBanner'
 import { ConflictNoteBanner } from '../ConflictNoteBanner'
 import { RawEditorView } from '../RawEditorView'
 import { SingleEditorView } from '../SingleEditorView'
+import { ActivityModeToggle } from '../activity/ActivityModeToggle'
+import { ActivityTimelineErrorBoundary } from '../activity/ActivityTimelineErrorBoundary'
+import { ActivityTimelineView } from '../activity/ActivityTimelineView'
 import type { useEditorContentModel } from './useEditorContentModel'
 
 type EditorContentModel = ReturnType<typeof useEditorContentModel>
@@ -372,6 +375,8 @@ type EditorCanvasProps = Pick<
   | 'vaultPath'
   | 'locale'
   | 'onImageImportError'
+  | 'onEditActivityRecord'
+  | 'onOpenActivityRaw'
 >
 
 function EditorCanvas(props: EditorCanvasProps) {
@@ -404,6 +409,8 @@ function StandardEditorCanvas({
   vaultPath,
   locale,
   onImageImportError,
+  onEditActivityRecord,
+  onOpenActivityRaw,
 }: EditorCanvasProps) {
   if (!isSheet && !richEditorContentReady) return null
 
@@ -444,6 +451,8 @@ function StandardEditorCanvas({
           onNavigateWikilink={onNavigateWikilink}
           onChange={onEditorChange}
           onImageImportError={onImageImportError}
+          onEditActivityRecord={onEditActivityRecord}
+          onOpenRaw={onOpenActivityRaw}
           sourceEntry={activeTab?.entry ?? null}
           vaultPath={vaultPath}
           editable={!isDeletedPreview}
@@ -525,6 +534,14 @@ export function EditorContentLayout(model: EditorContentModel) {
     locale,
     onImageImportError,
     isVaultLoading,
+    activityMode,
+    showActivityToggle,
+    showTimeline,
+    pendingActivityEditId,
+    onSelectActivityMode,
+    onEditActivityRecord,
+    onOpenActivityRaw,
+    onActivityEditHandled,
   } = model
   const rootClassName = cn(
     'flex flex-1 flex-col min-w-0 min-h-0',
@@ -549,6 +566,15 @@ export function EditorContentLayout(model: EditorContentModel) {
       />
       {showActiveContent && (
         <>
+          {showActivityToggle && (
+            <div className="flex shrink-0 justify-center border-b border-border/60 px-3 py-1.5">
+              <ActivityModeToggle
+                locale={locale ?? 'en'}
+                mode={activityMode}
+                onSelect={onSelectActivityMode}
+              />
+            </div>
+          )}
           <EditorChrome
             isArchived={isArchived}
             onUnarchiveNote={onUnarchiveNote}
@@ -561,6 +587,28 @@ export function EditorContentLayout(model: EditorContentModel) {
             onToggleDiff={onToggleDiff}
             locale={locale}
           />
+          {showTimeline && (
+            <ActivityTimelineErrorBoundary
+              key={activeTab.entry.path}
+              locale={locale ?? 'en'}
+              onOpenRaw={onOpenActivityRaw}
+              onReturnToNote={() => onSelectActivityMode('note')}
+            >
+              <div className="editor-scroll-area">
+                <ActivityTimelineView
+                  content={activeTab.content}
+                  locale={locale ?? 'en'}
+                  pendingEditId={pendingActivityEditId}
+                  onPendingEditHandled={onActivityEditHandled}
+                  onContentChange={(nextContent) => {
+                    onRawContentChange?.(activeTab.entry.path, nextContent)
+                  }}
+                  onOpenRaw={onOpenActivityRaw}
+                  onSave={onSave}
+                />
+              </div>
+            </ActivityTimelineErrorBoundary>
+          )}
           <RawModeEditorSection
             activeTab={activeTab}
             entries={entries}
@@ -587,6 +635,8 @@ export function EditorContentLayout(model: EditorContentModel) {
             onEditorChange={onEditorChange}
             onRawContentChange={onRawContentChange}
             onImageImportError={onImageImportError}
+            onEditActivityRecord={onEditActivityRecord}
+            onOpenActivityRaw={onOpenActivityRaw}
             sheetFlushRef={sheetFlushRef}
             isDeletedPreview={isDeletedPreview}
             isSheet={isSheet}

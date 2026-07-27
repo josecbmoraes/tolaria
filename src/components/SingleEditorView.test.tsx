@@ -64,6 +64,7 @@ describe('SingleEditorView', () => {
     state.capturedMantineGetStyleNonce = null
     state.blockNoteViewError = null
     state.blockNoteViewErrorOnce = false
+    state.renderActivityNavigationProbe = false
     state.imageDropState.isDragOver = false
     state.wikilinkEntriesRef.current = []
     state.wikilinkCandidates = []
@@ -72,6 +73,30 @@ describe('SingleEditorView', () => {
     document.documentElement.removeAttribute('data-theme')
     document.documentElement.classList.remove('dark')
     delete window.__laputaTest
+  })
+
+  it('provides Activity record navigation to rich editor blocks', () => {
+    state.renderActivityNavigationProbe = true
+    const onEditActivityRecord = vi.fn()
+    const onOpenRaw = vi.fn()
+
+    render(
+      <SingleEditorView
+        editor={createEditor() as never}
+        entries={[makeEntry()]}
+        locale="pt-BR"
+        onEditActivityRecord={onEditActivityRecord}
+        onNavigateWikilink={vi.fn()}
+        onOpenRaw={onOpenRaw}
+      />,
+    )
+
+    expect(screen.getByTestId('activity-navigation-probe')).toHaveAttribute('data-locale', 'pt-BR')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit activity record' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open activity RAW' }))
+
+    expect(onEditActivityRecord).toHaveBeenCalledWith('record-1')
+    expect(onOpenRaw).toHaveBeenCalledOnce()
   })
 
   it('repairs the live editor document before remounting after a stale missing-id block error', async () => {

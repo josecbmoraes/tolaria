@@ -22,6 +22,7 @@ import {
 } from '@blocknote/react'
 import { translate, type AppLocale } from '../lib/i18n'
 import { richEditorBlockTypeName } from '../utils/richEditorBlockTypes'
+import { LINE_RECORD_BLOCK_TYPE } from '../utils/lineRecordMarkdown'
 import {
   useCallback,
   type ComponentType,
@@ -441,6 +442,7 @@ function TolariaDragHandleMenu({
 export function TolariaSideMenu({ locale = 'en', ...props }: TolariaSideMenuProps) {
   const { block, editor } = useSideMenuBlock()
   useSideMenuTextAlignment(editor, block)
+  if (block?.type === LINE_RECORD_BLOCK_TYPE) return null
 
   return (
     <SideMenu {...props}>

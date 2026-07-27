@@ -647,6 +647,32 @@ files:
     noteList.changes.cancel: ea4788705e6873b424c65e91c2846b19
     editor.empty.selectNote: a71ec7c80aefe49c59f6aba033bf453e
     editor.empty.shortcuts: 1133fdf3ecef6a09dd9e2a185e1bd4ec
+    editor.activity.editInTimeline: 51990f371c0cb92cb6ef8c45d4ad800f
+    editor.activity.editInRaw: 872cc231d4bc9892d6d30c272196ebfd
+    editor.activity.followUp: b9c20d1b9fc0b3085809fa8376a50725
+    editor.activity.noteMode: 3b0649c72650c313a357338dcdfb64ec
+    editor.activity.timelineMode: 3d1f92a565d3b1a61880236e33c49bf3
+    editor.activity.occurredAt: c40ae136f082eec6d2fbc20b40f1bf99
+    editor.activity.followUpAt: b9c20d1b9fc0b3085809fa8376a50725
+    editor.activity.addFollowUp: 3132d48e49a36611a143ce204cb7c0d4
+    editor.activity.addUpdate: b763ce0a70b49b59c3f9312c6c9afc59
+    editor.activity.newUpdate: a70bf5b15f959872a625d3adfcbf7781
+    editor.activity.editUpdate: 7eb227f5dff16dc3ff64778fe50bef98
+    editor.activity.editDescription: 4597441f5112243898eb495e15385923
+    editor.activity.contentLabel: 06933067aafd48425d67bcb01bba5cb6
+    editor.activity.contentPlaceholder: fa692d85f08c92a585ed8b3fed7f1d52
+    editor.activity.pickDate: 2badfa8fae80a36f4e2d4ee833e26d8c
+    editor.activity.timeLabel: a76d4ef5f3f6a672bbfab2865563e530
+    editor.activity.clearFollowUp: 2d2c16fb576a054dd4beb52f67d91b7c
+    editor.activity.deleteUpdate: 7a217c5a368c6665ed56b628885e9919
+    editor.activity.deleteConfirmTitle: ef969321e5506b98de527f402c580e95
+    editor.activity.deleteConfirmDescription: 63481007710e87095f0e4779f02d6344
+    editor.activity.emptyTitle: cfbd8245c849f5f00b495d61ea14dfdf
+    editor.activity.emptyDescription: a93a805289da4b4b0a6757dd00d1dce8
+    editor.activity.validationRequired: d86cec95b66edb119d72fb2baa6bf02b
+    editor.activity.malformedTitle: 332131ed54fd731ce5eb23f4c679aff3
+    editor.activity.malformedRawOnly: f7d81926896d77668aab0a95fbe87c72
+    editor.activity.unknownType: 623c36f41cf727361d0977792ed46958
     editor.raw.label: 7a9754c15264b0604aa31dfea32321ea
     editor.sheet.loading: 59df3a3f0bb3834a820e8fbf6a515114
     editor.sheet.unavailable: f0920deeec857fa2251bb073b956364e

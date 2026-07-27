@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import type { ComponentType, ReactNode } from 'react'
 import { expect, vi } from 'vitest'
 import type { VaultEntry } from '../types'
+import { SingleEditorViewActivityProbe } from './SingleEditorViewActivityProbe'
 import { TooltipProvider } from './ui/tooltip'
 
 const state = vi.hoisted(() => ({
@@ -13,6 +14,7 @@ const state = vi.hoisted(() => ({
   capturedMantineGetStyleNonce: null as null | (() => string),
   blockNoteViewError: null as Error | null,
   blockNoteViewErrorOnce: false,
+  renderActivityNavigationProbe: false,
   hoverGuardMock: vi.fn(),
   imageDropState: { isDragOver: false },
   linkActivationMock: vi.fn(),
@@ -75,6 +77,7 @@ vi.mock('@blocknote/react', () => ({
         {...restProps}
       >
         {children}
+        {state.renderActivityNavigationProbe && <SingleEditorViewActivityProbe />}
       </div>
     )
   },

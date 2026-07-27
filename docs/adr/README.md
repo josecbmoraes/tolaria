@@ -143,7 +143,7 @@ proposed → active → superseded
 | [0084](0084-app-localization-foundation.md) | App-owned localization foundation | superseded → [0087](0087-json-catalogs-and-lara-cli-localization.md) |
 | [0085](0085-non-git-vault-support.md) | Non-git vaults open with explicit later Git initialization | active |
 | [0086](0086-in-app-image-file-preview.md) | In-app image previews for binary vault files | superseded → [0098](0098-in-app-image-and-pdf-file-previews.md) |
-| [0087](0087-json-catalogs-and-lara-cli-localization.md) | JSON locale catalogs with Lara CLI synchronization | active |
+| [0087](0087-json-catalogs-and-lara-cli-localization.md) | JSON locale catalogs with Lara CLI synchronization | superseded → [0174](0174-external-translation-services-are-optional.md) |
 | [0088](0088-markdown-durable-mermaid-diagrams.md) | Markdown-durable Mermaid diagrams in notes | active |
 | [0089](0089-active-vault-filesystem-watcher.md) | Active vault filesystem watcher | superseded -> [0165](0165-window-owned-vault-watchers-and-main-window-git-background-work.md) |
 | [0090](0090-pi-cli-agent-adapter.md) | Pi CLI agent adapter | active |
@@ -228,3 +228,5 @@ proposed → active → superseded
 | [0170](0170-measurable-crash-safe-startup.md) | Measurable, crash-safe startup | active |
 | [0171](0171-separate-vault-application-instances.md) | Separate vault application instances | active |
 | [0172](0172-local-codescene-change-safeguards.md) | Local CodeScene safeguards before commits and direct-to-main pushes | active |
+| [0173](0173-scoped-durable-activity-records.md) | Scoped durable Activity records | active |
+| [0174](0174-external-translation-services-are-optional.md) | External translation services are optional | active |
