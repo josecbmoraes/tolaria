@@ -1264,6 +1264,30 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
   view.dispatch(transaction)
 }
 
+function useHideActivitySectionInNote(containerRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const updateVisibility = () => {
+      let hidingActivity = false
+      for (const block of container.querySelectorAll<HTMLElement>('.bn-block')) {
+        const heading = block.querySelector<HTMLElement>('[data-content-type="heading"]')
+        const isActivityHeading = heading?.dataset.level === '2' && heading.textContent?.trim() === 'Activity'
+        const endsActivity = heading !== null && heading.dataset.level === '2' && !isActivityHeading
+        if (endsActivity) hidingActivity = false
+        if (isActivityHeading) hidingActivity = true
+        block.toggleAttribute('data-tolaria-hidden-activity', hidingActivity)
+      }
+    }
+
+    updateVisibility()
+    const observer = new MutationObserver(updateVisibility)
+    observer.observe(container, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [containerRef])
+}
+
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
 export function SingleEditorView(options: {
   currentContent?: string
@@ -1284,6 +1308,7 @@ export function SingleEditorView(options: {
   const themeMode = useDocumentThemeMode()
   const previousThemeModeRef = useRef(themeMode)
   const containerRef = useRef<HTMLDivElement>(null)
+  useHideActivitySectionInNote(containerRef)
   const suppressNextContainerClickRef = useRef(false)
   const handleContainerClick = useEditorContainerClickHandler({
     editable,

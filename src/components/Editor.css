@@ -90,6 +90,10 @@ body.mac-chrome .app:not(:has(.app__sidebar), :has(.app__note-list)) .breadcrumb
   cursor: text;
 }
 
+.editor__blocknote-container .bn-block[data-tolaria-hidden-activity] {
+  display: none;
+}
+
 /* Drag-over state: subtle border highlight */
 .editor__blocknote-container--drag-over {
   outline: 2px dashed var(--border-focus);
