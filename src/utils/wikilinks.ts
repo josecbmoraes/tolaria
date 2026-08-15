@@ -470,6 +470,7 @@ function removeH1Line(body: MarkdownSource): MarkdownSource {
 function contentWithoutActivitySection(content: MarkdownSource): MarkdownSource {
   let fenceMarker: FenceMarker = null
   let skippingActivity = false
+  let activityRemoved = false
   const keptLines: MarkdownLines = []
 
   for (const line of content.split('\n')) {
@@ -477,8 +478,9 @@ function contentWithoutActivitySection(content: MarkdownSource): MarkdownSource 
     const isH2 = !wasInsideFence && /^##(?!#)\s+/u.test(line.trim())
     const isActivityHeading = isH2 && /^##\s+Activity\s*$/u.test(line.trim())
 
-    if (isActivityHeading) {
+    if (isActivityHeading && !activityRemoved) {
       skippingActivity = true
+      activityRemoved = true
     } else if (skippingActivity && isH2) {
       skippingActivity = false
       keptLines.push(line)

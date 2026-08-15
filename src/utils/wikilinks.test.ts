@@ -652,6 +652,11 @@ describe('extractSnippet', () => {
     expect(extractSnippet(content)).toBe('Useful context.')
   })
 
+  it('preserves a later Activity section after excluding the first one', () => {
+    const content = '# Felipe\n\n## Activity\n\n```line-record\nid: record-1\ntype: update\n```\n\n## Notes\n\nUseful context.\n\n## Activity\n\nFollow-up activity note.'
+    expect(extractSnippet(content)).toBe('Useful context. Follow-up activity note.')
+  })
+
   it('extracts first paragraph after frontmatter and title', () => {
     const content = '---\ntype: Note\n---\n\n# My Note\n\nThis is the first paragraph of content.\n\n## Section Two\n\nMore content here.'
     const snippet = extractSnippet(content)
