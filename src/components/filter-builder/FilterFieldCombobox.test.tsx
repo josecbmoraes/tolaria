@@ -56,4 +56,25 @@ describe('FilterFieldCombobox', () => {
 
     expect(onWheel).not.toHaveBeenCalled()
   })
+
+  it('matches a localized display label and selects the canonical field name', () => {
+    const onChange = vi.fn()
+    render(
+      <FilterFieldCombobox
+        value="status"
+        fields={['status', 'next follow-up']}
+        locale="pt-BR"
+        onChange={onChange}
+      />,
+    )
+
+    const input = screen.getByTestId('filter-field-combobox-input')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'acompanhamento' } })
+
+    const option = screen.getByRole('option', { name: 'Próximo acompanhamento' })
+    fireEvent.click(option)
+
+    expect(onChange).toHaveBeenCalledWith('next follow-up')
+  })
 })

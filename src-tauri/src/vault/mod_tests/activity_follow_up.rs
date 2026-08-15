@@ -52,6 +52,45 @@ fn ignores_activity_records_after_the_next_level_two_heading() {
 }
 
 #[test]
+fn ignores_activity_heading_without_required_whitespace() {
+    let dir = TempDir::new().unwrap();
+    let entry = parse_test_entry(
+        &dir,
+        "project.md",
+        "##Activity\n\n```line-record\nid: compact-heading\nfollow_up_at: 2026-08-20T09:00:00-03:00\n---\nMust not be indexed.\n```\n",
+    );
+
+    assert_eq!(entry.next_follow_up_at, None);
+}
+
+#[test]
+fn ignores_four_space_indented_activity_pseudo_heading() {
+    let dir = TempDir::new().unwrap();
+    let entry = parse_test_entry(
+        &dir,
+        "project.md",
+        "    ## Activity\n\n```line-record\nid: indented-heading\nfollow_up_at: 2026-08-20T09:00:00-03:00\n---\nMust not be indexed.\n```\n",
+    );
+
+    assert_eq!(entry.next_follow_up_at, None);
+}
+
+#[test]
+fn keeps_scanning_after_four_space_indented_boundary_text() {
+    let dir = TempDir::new().unwrap();
+    let entry = parse_test_entry(
+        &dir,
+        "project.md",
+        "## Activity\n\n    ## Decisions\n\n```line-record\nid: after-indented-text\nfollow_up_at: 2026-08-20T09:00:00-03:00\n---\nMust be indexed.\n```\n",
+    );
+
+    assert_eq!(
+        entry.next_follow_up_at.as_deref(),
+        Some("2026-08-20T09:00:00-03:00")
+    );
+}
+
+#[test]
 fn ignores_unterminated_activity_record_fences() {
     let dir = TempDir::new().unwrap();
     let entry = parse_test_entry(

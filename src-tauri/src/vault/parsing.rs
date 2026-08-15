@@ -411,23 +411,34 @@ pub(super) fn extract_next_follow_up_at(content: &str) -> Option<String> {
 }
 
 fn is_activity_heading(line: &str) -> bool {
-    let trimmed = line.trim_start();
+    let Some(trimmed) = strip_heading_indentation(line) else {
+        return false;
+    };
     let Some(rest) = trimmed.strip_prefix("##") else {
         return false;
     };
-    if rest.starts_with('#') {
+    if !rest.starts_with([' ', '\t']) {
         return false;
     }
-    rest.trim().trim_end_matches('#').trim_end().eq("Activity")
+    rest.trim_matches([' ', '\t'])
+        .trim_end_matches('#')
+        .trim_end_matches([' ', '\t'])
+        .eq("Activity")
 }
 
 fn is_level_two_heading(line: &str) -> bool {
-    let trimmed = line.trim_start();
+    let Some(trimmed) = strip_heading_indentation(line) else {
+        return false;
+    };
     let Some(rest) = trimmed.strip_prefix("##") else {
         return false;
     };
-    !rest.starts_with('#')
-        && (rest.is_empty() || rest.chars().next().is_some_and(char::is_whitespace))
+    !rest.starts_with('#') && (rest.is_empty() || rest.starts_with([' ', '\t']))
+}
+
+fn strip_heading_indentation(line: &str) -> Option<&str> {
+    let indentation = line.bytes().take_while(|byte| *byte == b' ').count();
+    (indentation <= 3).then(|| &line[indentation..])
 }
 
 fn read_fence(line: &str) -> Option<MarkdownFence> {

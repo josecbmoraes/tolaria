@@ -27,6 +27,7 @@ interface FieldGroup {
 interface BuildFieldGroupsInput {
   currentValue: FilterFieldName
   fields: FilterFieldName[]
+  locale: AppLocale
   query: FilterFieldQuery
 }
 
@@ -43,12 +44,14 @@ function displayFieldName(locale: AppLocale, field: FilterFieldName): string {
   return field === 'next follow-up' ? translate(locale, 'noteList.sort.nextFollowUp') : field
 }
 
-function buildFieldGroups({ fields, currentValue, query }: BuildFieldGroupsInput): FieldGroup[] {
+function buildFieldGroups({ fields, currentValue, locale, query }: BuildFieldGroupsInput): FieldGroup[] {
   const allFields = currentValue !== '' && !fields.includes(currentValue)
     ? [currentValue, ...fields]
     : fields
   const normalized = normalizeFieldQuery(query)
-  const matches = (field: FilterFieldName) => normalized === '' || field.toLowerCase().includes(normalized)
+  const matches = (field: FilterFieldName) => normalized === ''
+    || normalizeFieldQuery(field).includes(normalized)
+    || normalizeFieldQuery(displayFieldName(locale, field)).includes(normalized)
   const propertyOptions = allFields.filter((field) => !CONTENT_FIELDS.has(field) && matches(field))
   const contentOptions = allFields.filter((field) => CONTENT_FIELDS.has(field) && matches(field))
   const groups: FieldGroup[] = []
@@ -280,8 +283,8 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
   const listboxId = useId()
   const effectiveQuery = hasTyped ? query : ''
   const fieldGroups = useMemo(
-    () => buildFieldGroups({ fields, currentValue: value, query: effectiveQuery }),
-    [fields, value, effectiveQuery],
+    () => buildFieldGroups({ fields, currentValue: value, locale, query: effectiveQuery }),
+    [fields, value, locale, effectiveQuery],
   )
   const options = useMemo(() => flattenGroups(fieldGroups), [fieldGroups])
 
@@ -289,7 +292,7 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
     setQuery(displayFieldName(locale, value))
     setHasTyped(false)
     setHighlightedIndex(initialHighlightIndex({
-      options: flattenGroups(buildFieldGroups({ fields, currentValue: value, query: '' })),
+      options: flattenGroups(buildFieldGroups({ fields, currentValue: value, locale, query: '' })),
       currentValue: value,
     }))
   }, [fields, locale, value])
@@ -341,7 +344,7 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextQuery = event.target.value
-    const nextGroups = buildFieldGroups({ fields, currentValue: value, query: nextQuery })
+    const nextGroups = buildFieldGroups({ fields, currentValue: value, locale, query: nextQuery })
     const nextOptions = flattenGroups(nextGroups)
     setOpen(true)
     setQuery(nextQuery)
