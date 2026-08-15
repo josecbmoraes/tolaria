@@ -1264,28 +1264,32 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
   view.dispatch(transaction)
 }
 
-function useHideActivitySectionInNote(containerRef: React.RefObject<HTMLDivElement | null>) {
+function syncActivitySectionVisibility(container: HTMLElement) {
+  let hidingActivity = false
+  for (const block of container.querySelectorAll<HTMLElement>('.bn-block')) {
+    const heading = block.querySelector<HTMLElement>('[data-content-type="heading"]')
+    const isActivityHeading = heading?.dataset.level === '2' && heading.textContent?.trim() === 'Activity'
+    if (heading?.dataset.level === '2') hidingActivity = isActivityHeading
+
+    if (block.hasAttribute('data-tolaria-hidden-activity') !== hidingActivity) {
+      block.toggleAttribute('data-tolaria-hidden-activity', hidingActivity)
+    }
+  }
+}
+
+function useHideActivitySectionInNote(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  currentContent: string,
+) {
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    const updateVisibility = () => {
-      let hidingActivity = false
-      for (const block of container.querySelectorAll<HTMLElement>('.bn-block')) {
-        const heading = block.querySelector<HTMLElement>('[data-content-type="heading"]')
-        const isActivityHeading = heading?.dataset.level === '2' && heading.textContent?.trim() === 'Activity'
-        const endsActivity = heading !== null && heading.dataset.level === '2' && !isActivityHeading
-        if (endsActivity) hidingActivity = false
-        if (isActivityHeading) hidingActivity = true
-        block.toggleAttribute('data-tolaria-hidden-activity', hidingActivity)
-      }
+    const frame = requestAnimationFrame(() => syncActivitySectionVisibility(container))
+    return () => {
+      cancelAnimationFrame(frame)
     }
-
-    updateVisibility()
-    const observer = new MutationObserver(updateVisibility)
-    observer.observe(container, { childList: true, subtree: true })
-    return () => observer.disconnect()
-  }, [containerRef])
+  }, [containerRef, currentContent])
 }
 
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
@@ -1308,7 +1312,7 @@ export function SingleEditorView(options: {
   const themeMode = useDocumentThemeMode()
   const previousThemeModeRef = useRef(themeMode)
   const containerRef = useRef<HTMLDivElement>(null)
-  useHideActivitySectionInNote(containerRef)
+  useHideActivitySectionInNote(containerRef, currentContent)
   const suppressNextContainerClickRef = useRef(false)
   const handleContainerClick = useEditorContainerClickHandler({
     editable,

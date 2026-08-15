@@ -79,16 +79,19 @@ function sameTargets(current: CodeBlockLanguageTarget[], next: CodeBlockLanguage
   return JSON.stringify(current) === JSON.stringify(next)
 }
 
-function addedNodeTouchesEditor(node: Node): boolean {
+function nodeIncludesLanguageControl(node: Node): boolean {
   if (node.nodeType !== ELEMENT_NODE) return false
   const element = node as Element
-  return element.matches('.bn-editor') || element.querySelector('.bn-editor') !== null
+  return element.matches(NATIVE_LANGUAGE_CONTROL_SELECTOR)
+    || element.querySelector(NATIVE_LANGUAGE_CONTROL_SELECTOR) !== null
 }
 
-function mutationTouchesEditor(mutation: MutationRecord): boolean {
-  if (mutation.target.nodeType === ELEMENT_NODE
-    && (mutation.target as Element).closest('.bn-editor')) return true
-  return Array.from(mutation.addedNodes).some(addedNodeTouchesEditor)
+function mutationTouchesCodeBlockLanguageControl(mutation: MutationRecord): boolean {
+  if (mutation.type === 'attributes') {
+    return mutation.target instanceof Element && mutation.target.matches('.bn-editor')
+  }
+
+  return [...mutation.addedNodes, ...mutation.removedNodes].some(nodeIncludesLanguageControl)
 }
 
 function useCodeBlockLanguageTargets(editor: CodeBlockLanguageEditor) {
@@ -105,7 +108,7 @@ function useCodeBlockLanguageTargets(editor: CodeBlockLanguageEditor) {
       })
     }
     const observer = new MutationObserver((mutations) => {
-      if (mutations.some(mutationTouchesEditor)) refresh()
+      if (mutations.some(mutationTouchesCodeBlockLanguageControl)) refresh()
     })
     observer.observe(document.body, {
       attributeFilter: ['contenteditable'],

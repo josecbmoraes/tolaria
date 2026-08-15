@@ -71,4 +71,28 @@ describe('CodeBlockLanguageControls', () => {
       props: { language: 'cpp' },
     })
   })
+
+  it('does not schedule a refresh for ordinary editor content mutations', async () => {
+    const { editorElement } = codeBlockDom()
+    const editor = {
+      getBlock: vi.fn(() => null),
+      isEditable: true,
+      onChange: vi.fn(() => vi.fn()),
+      updateBlock: vi.fn(),
+    }
+
+    render(<CodeBlockLanguageControls editor={editor as never} />)
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    })
+
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame')
+    editorElement.append(document.createElement('p'))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled()
+    requestAnimationFrameSpy.mockRestore()
+  })
 })

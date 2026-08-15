@@ -99,6 +99,57 @@ describe('SingleEditorView', () => {
     expect(onOpenRaw).toHaveBeenCalledOnce()
   })
 
+  it('syncs Activity visibility after a note content change without observing editor mutations', async () => {
+    const editor = createEditor()
+    const view = render(
+      <SingleEditorView
+        currentContent="Before content change"
+        editor={editor as never}
+        entries={[makeEntry()]}
+        onNavigateWikilink={vi.fn()}
+      />,
+      { wrapper: TooltipProvider },
+    )
+    const container = screen.getByTestId('blocknote-view').closest('.editor__blocknote-container')
+    if (!container) throw new Error('Expected the editor container to render')
+    const activityHeading = document.createElement('div')
+    activityHeading.className = 'bn-block'
+    activityHeading.innerHTML = '<div data-content-type="heading" data-level="2">Activity</div>'
+    const activityRecord = document.createElement('div')
+    activityRecord.className = 'bn-block'
+    const nextHeading = document.createElement('div')
+    nextHeading.className = 'bn-block'
+    nextHeading.innerHTML = '<div data-content-type="heading" data-level="2">Next</div>'
+
+    container.append(activityHeading, activityRecord, nextHeading)
+
+    view.rerender(
+      <SingleEditorView
+        currentContent="After content change"
+        editor={editor as never}
+        entries={[makeEntry()]}
+        onNavigateWikilink={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(activityHeading).toHaveAttribute('data-tolaria-hidden-activity')
+      expect(activityRecord).toHaveAttribute('data-tolaria-hidden-activity')
+      expect(nextHeading).not.toHaveAttribute('data-tolaria-hidden-activity')
+    })
+
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame')
+    const insertedBlock = document.createElement('div')
+    insertedBlock.className = 'bn-block'
+    container.append(insertedBlock)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled()
+    requestAnimationFrameSpy.mockRestore()
+  })
+
   it('repairs the live editor document before remounting after a stale missing-id block error', async () => {
     state.blockNoteViewError = new Error("Block doesn't have id")
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
