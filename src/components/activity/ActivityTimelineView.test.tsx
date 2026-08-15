@@ -58,6 +58,15 @@ describe('ActivityTimelineView', () => {
     expect(onContentChange).not.toHaveBeenCalled()
   })
 
+  it('preserves line breaks in an update body', () => {
+    const content = SOURCE_ORDERED_ACTIVITY.replace('Latest update', 'First line\nSecond line')
+
+    renderTimeline(content)
+
+    expect(screen.getAllByTestId('activity-record-card')[0].querySelectorAll('.ai-markdown p br'))
+      .toHaveLength(1)
+  })
+
   it('uses physical source order as the tie-breaker for equal timestamps', () => {
     const tied = SOURCE_ORDERED_ACTIVITY.replace(
       '2026-07-25T09:30:00-03:00',

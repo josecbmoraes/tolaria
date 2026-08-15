@@ -52,6 +52,19 @@ describe('LineRecordBlock', () => {
     expect(screen.queryByText('Follow-up')).not.toBeInTheDocument()
   })
 
+  it('preserves soft line breaks while rendering Markdown in Note mode', () => {
+    renderBlock({ ...validProps, body: 'First line\n**Second line**' })
+
+    expect(screen.getByText('Second line').tagName).toBe('STRONG')
+    expect(screen.getByText('Second line').parentElement?.querySelectorAll('br')).toHaveLength(1)
+  })
+
+  it('keeps Markdown lists inside the Note-mode record formatting scope', () => {
+    renderBlock({ ...validProps, body: '- First item\n- Second item' })
+
+    expect(screen.getByRole('list').closest('.activity-record-markdown')).not.toBeNull()
+  })
+
   it('signals malformed metadata and offers repair only in RAW', () => {
     const { editInTimeline, openRaw } = renderBlock({
       ...validProps,

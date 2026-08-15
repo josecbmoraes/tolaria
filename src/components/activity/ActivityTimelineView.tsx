@@ -147,7 +147,7 @@ export function ActivityTimelineView({
             {formatOccurredAt(record.occurredAt ?? '', locale)}
           </time>
           <div className="mt-2 text-sm">
-            <MarkdownContent content={record.content} />
+            <MarkdownContent content={record.content} preserveLineBreaks />
           </div>
           {record.followUpAt && (
             <p className="m-0 mt-2 text-xs text-muted-foreground">

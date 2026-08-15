@@ -117,6 +117,12 @@ describe('MarkdownContent', () => {
     expect(screen.getByText('Just plain text')).toBeTruthy()
   })
 
+  it('preserves soft line breaks when requested', () => {
+    const { container } = render(<MarkdownContent content={'First line\nSecond line'} preserveLineBreaks />)
+
+    expect(container.querySelectorAll('p br')).toHaveLength(1)
+  })
+
   it('renders blockquotes', () => {
     const { container } = render(<MarkdownContent content="> A quote" />)
     const bq = container.querySelector('blockquote')

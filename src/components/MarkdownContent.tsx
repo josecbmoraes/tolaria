@@ -1,4 +1,4 @@
-import { memo, useMemo, type MouseEvent, type ReactNode } from 'react'
+import { Children, memo, useMemo, type MouseEvent, type ReactNode } from 'react'
 import Markdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -27,12 +27,29 @@ function openExplicitWebUrl(event: MouseEvent<HTMLAnchorElement>, href: string) 
   })
 }
 
+function renderSoftLineBreaks(children: ReactNode): ReactNode {
+  return Children.toArray(children).flatMap((child, childIndex) => {
+    if (typeof child !== 'string') return [child]
+
+    return child.split(/\r?\n/u).flatMap((line, lineIndex) => (
+      lineIndex === 0
+        ? [line]
+        : [<br key={`soft-break-${childIndex}-${lineIndex}`} />, line]
+    ))
+  })
+}
+
 interface MarkdownContentProps {
   content: string
   onWikilinkClick?: (target: string) => void
+  preserveLineBreaks?: boolean
 }
 
-export const MarkdownContent = memo(function MarkdownContent({ content, onWikilinkClick }: MarkdownContentProps) {
+export const MarkdownContent = memo(function MarkdownContent({
+  content,
+  onWikilinkClick,
+  preserveLineBreaks = false,
+}: MarkdownContentProps) {
   const processedContent = useMemo(
     () => onWikilinkClick ? preprocessWikilinks(content) : content,
     [content, onWikilinkClick],
@@ -40,6 +57,9 @@ export const MarkdownContent = memo(function MarkdownContent({ content, onWikili
 
   const components = useMemo(() => {
     return {
+      p: ({ children }: { children?: ReactNode }) => (
+        <p>{preserveLineBreaks ? renderSoftLineBreaks(children) : children}</p>
+      ),
       a: ({ href, children }: { href?: string; children?: ReactNode }) => {
         if (onWikilinkClick && href?.startsWith(WIKILINK_SCHEME)) {
           const target = decodeURIComponent(href.slice(WIKILINK_SCHEME.length))
@@ -67,7 +87,7 @@ export const MarkdownContent = memo(function MarkdownContent({ content, onWikili
         return <a href={href}>{children}</a>
       },
     }
-  }, [onWikilinkClick])
+  }, [onWikilinkClick, preserveLineBreaks])
 
   return (
     <div className="ai-markdown min-w-0 max-w-full overflow-hidden">

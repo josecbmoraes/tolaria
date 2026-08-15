@@ -82,8 +82,8 @@ export function LineRecordBlock({ block }: LineRecordBlockProps) {
           >
             {formattedDateTime(props.occurredAt, locale)}
           </time>
-          <div className="mt-1 text-sm text-foreground">
-            <MarkdownContent content={props.body} />
+          <div className="activity-record-markdown mt-1 text-sm text-foreground">
+            <MarkdownContent content={props.body} preserveLineBreaks />
           </div>
           {props.followUpAt && (
             <p className="m-0 mt-1 text-xs text-muted-foreground">
