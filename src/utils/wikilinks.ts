@@ -466,6 +466,32 @@ function removeH1Line(body: MarkdownSource): MarkdownSource {
   return body
 }
 
+/** Remove the first H2 Activity section and its contents, preserving later sections. */
+function contentWithoutActivitySection(content: MarkdownSource): MarkdownSource {
+  let fenceMarker: FenceMarker = null
+  let skippingActivity = false
+  const keptLines: MarkdownLines = []
+
+  for (const line of content.split('\n')) {
+    const wasInsideFence = fenceMarker !== null
+    const isH2 = !wasInsideFence && /^##(?!#)\s+/u.test(line.trim())
+    const isActivityHeading = isH2 && /^##\s+Activity\s*$/u.test(line.trim())
+
+    if (isActivityHeading) {
+      skippingActivity = true
+    } else if (skippingActivity && isH2) {
+      skippingActivity = false
+      keptLines.push(line)
+    } else if (!skippingActivity) {
+      keptLines.push(line)
+    }
+
+    fenceMarker = nextMarkdownFenceMarker(line, fenceMarker)
+  }
+
+  return keptLines.join('\n')
+}
+
 /** Strip markdown formatting chars: bold, italic, code, strikethrough, and resolve links. */
 function stripMarkdownChars(s: MarkdownSource): MarkdownSource {
   let result = ''
@@ -537,14 +563,15 @@ function extractSubheadingText(line: MarkdownLine): MarkdownSource | null {
 export function extractSnippet(content: MarkdownSource): MarkdownSource {
   const [, body] = splitFrontmatter(content)
   const withoutH1 = removeH1Line(body)
-  const clean = withoutH1.split('\n').filter(isSnippetLine).map(stripListMarker).join(' ')
+  const withoutActivity = contentWithoutActivitySection(withoutH1)
+  const clean = withoutActivity.split('\n').filter(isSnippetLine).map(stripListMarker).join(' ')
   const stripped = stripMarkdownChars(clean).trim()
   if (stripped) {
     if (stripped.length <= 160) return stripped
     return `${stripped.slice(0, 160)}...`
   }
   // Fallback: collect sub-heading text when no paragraph content exists
-  const headingText = withoutH1.split('\n')
+  const headingText = withoutActivity.split('\n')
     .map(extractSubheadingText)
     .filter((t): t is MarkdownSource => t !== null)
     .join(' ')

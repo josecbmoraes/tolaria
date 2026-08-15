@@ -642,6 +642,16 @@ describe('extractBacklinkContext', () => {
 })
 
 describe('extractSnippet', () => {
+  it('returns an empty snippet for an Activity-only note', () => {
+    const content = '# Felipe\n\n## Activity\n\n```line-record\nid: record-1\ntype: update\nText\n```'
+    expect(extractSnippet(content)).toBe('')
+  })
+
+  it('uses ordinary note text after an Activity section', () => {
+    const content = '# Felipe\n\n## Activity\n\n```line-record\nid: record-1\ntype: update\n```\n\n## Notes\n\nUseful context.'
+    expect(extractSnippet(content)).toBe('Useful context.')
+  })
+
   it('extracts first paragraph after frontmatter and title', () => {
     const content = '---\ntype: Note\n---\n\n# My Note\n\nThis is the first paragraph of content.\n\n## Section Two\n\nMore content here.'
     const snippet = extractSnippet(content)
