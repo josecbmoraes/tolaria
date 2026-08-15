@@ -387,7 +387,7 @@ pub(super) fn extract_next_follow_up_at(content: &str) -> Option<String> {
             continue;
         };
 
-        if fence_info(line) != "line-record" {
+        if line != "```line-record" {
             active_fence = Some(fence);
             index += 1;
             continue;
@@ -438,13 +438,6 @@ fn read_fence(line: &str) -> Option<MarkdownFence> {
     }
     let length = trimmed.bytes().take_while(|byte| *byte == marker).count();
     (length >= 3).then_some(MarkdownFence { marker, length })
-}
-
-fn fence_info(line: &str) -> &str {
-    let trimmed = line.trim_start();
-    let marker = trimmed.as_bytes().first().copied().unwrap_or_default();
-    let length = trimmed.bytes().take_while(|byte| *byte == marker).count();
-    trimmed[length..].trim()
 }
 
 fn closes_fence(line: &str, fence: MarkdownFence) -> bool {

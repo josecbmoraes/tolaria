@@ -64,6 +64,24 @@ fn ignores_unterminated_activity_record_fences() {
 }
 
 #[test]
+fn ignores_near_match_activity_record_openers() {
+    let dir = TempDir::new().unwrap();
+
+    for (file_name, opener, closer) in [
+        ("tilde.md", "~~~line-record", "~~~"),
+        ("longer.md", "````line-record", "````"),
+        ("spaced.md", "``` line-record", "```"),
+    ] {
+        let content = format!(
+            "## Activity\n\n{opener}\nid: near-match\nfollow_up_at: 2026-08-20T09:00:00-03:00\n---\nMust not be indexed.\n{closer}\n"
+        );
+        let entry = parse_test_entry(&dir, file_name, &content);
+
+        assert_eq!(entry.next_follow_up_at, None, "{opener}");
+    }
+}
+
+#[test]
 fn indexes_overdue_activity_follow_ups() {
     let dir = TempDir::new().unwrap();
     let entry = parse_test_entry(
