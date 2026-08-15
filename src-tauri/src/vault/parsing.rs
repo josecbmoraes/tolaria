@@ -1,6 +1,8 @@
 //! Pure text-processing helpers for markdown content parsing.
 //! Snippet extraction, markdown stripping, date parsing, and string utilities.
 
+use chrono::{DateTime, FixedOffset};
+
 #[derive(Clone, Copy)]
 struct TextSlice<'a>(&'a str);
 
@@ -339,6 +341,145 @@ pub(super) fn extract_outgoing_links(content: &str) -> Vec<String> {
     links.sort();
     links.dedup();
     links
+}
+
+#[derive(Clone, Copy)]
+struct MarkdownFence {
+    marker: u8,
+    length: usize,
+}
+
+/// Find the earliest valid follow-up in closed Activity line-record fences.
+pub(super) fn extract_next_follow_up_at(content: &str) -> Option<String> {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut earliest: Option<(DateTime<FixedOffset>, String)> = None;
+    let mut active_fence = None;
+    let mut in_activity = false;
+    let mut index = 0;
+
+    while index < lines.len() {
+        let line = lines[index];
+
+        if let Some(fence) = active_fence {
+            if closes_fence(line, fence) {
+                active_fence = None;
+            }
+            index += 1;
+            continue;
+        }
+
+        if !in_activity {
+            if is_activity_heading(line) {
+                in_activity = true;
+            } else if let Some(fence) = read_fence(line) {
+                active_fence = Some(fence);
+            }
+            index += 1;
+            continue;
+        }
+
+        if is_level_two_heading(line) {
+            break;
+        }
+
+        let Some(fence) = read_fence(line) else {
+            index += 1;
+            continue;
+        };
+
+        if fence_info(line) != "line-record" {
+            active_fence = Some(fence);
+            index += 1;
+            continue;
+        }
+
+        let Some(closing_index) = find_closing_fence(&lines, index, fence) else {
+            break;
+        };
+        if let Some((timestamp, source)) = read_follow_up_at(&lines[index + 1..closing_index]) {
+            if earliest
+                .as_ref()
+                .is_none_or(|(current, _)| timestamp < *current)
+            {
+                earliest = Some((timestamp, source));
+            }
+        }
+        index = closing_index + 1;
+    }
+
+    earliest.map(|(_, source)| source)
+}
+
+fn is_activity_heading(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let Some(rest) = trimmed.strip_prefix("##") else {
+        return false;
+    };
+    if rest.starts_with('#') {
+        return false;
+    }
+    rest.trim().trim_end_matches('#').trim_end().eq("Activity")
+}
+
+fn is_level_two_heading(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let Some(rest) = trimmed.strip_prefix("##") else {
+        return false;
+    };
+    !rest.starts_with('#')
+        && (rest.is_empty() || rest.chars().next().is_some_and(char::is_whitespace))
+}
+
+fn read_fence(line: &str) -> Option<MarkdownFence> {
+    let trimmed = line.trim_start();
+    let marker = *trimmed.as_bytes().first()?;
+    if marker != b'`' && marker != b'~' {
+        return None;
+    }
+    let length = trimmed.bytes().take_while(|byte| *byte == marker).count();
+    (length >= 3).then_some(MarkdownFence { marker, length })
+}
+
+fn fence_info(line: &str) -> &str {
+    let trimmed = line.trim_start();
+    let marker = trimmed.as_bytes().first().copied().unwrap_or_default();
+    let length = trimmed.bytes().take_while(|byte| *byte == marker).count();
+    trimmed[length..].trim()
+}
+
+fn closes_fence(line: &str, fence: MarkdownFence) -> bool {
+    let trimmed = line.trim_start();
+    let length = trimmed
+        .bytes()
+        .take_while(|byte| *byte == fence.marker)
+        .count();
+    length >= fence.length && trimmed[length..].trim().is_empty()
+}
+
+fn find_closing_fence(lines: &[&str], opening_index: usize, fence: MarkdownFence) -> Option<usize> {
+    lines
+        .iter()
+        .enumerate()
+        .skip(opening_index + 1)
+        .find_map(|(index, line)| closes_fence(line, fence).then_some(index))
+}
+
+fn read_follow_up_at(lines: &[&str]) -> Option<(DateTime<FixedOffset>, String)> {
+    for line in lines {
+        if line.trim() == "---" {
+            return None;
+        }
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        if key.trim() != "follow_up_at" {
+            continue;
+        }
+        let source = value.trim();
+        let timestamp = DateTime::parse_from_rfc3339(source).ok()?;
+        return Some((timestamp, source.to_string()));
+    }
+    None
 }
 
 #[cfg(test)]

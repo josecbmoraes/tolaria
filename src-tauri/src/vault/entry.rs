@@ -30,6 +30,9 @@ pub struct VaultEntry {
     pub modified_at: Option<u64>,
     #[serde(rename = "createdAt")]
     pub created_at: Option<u64>,
+    /// Earliest pending Activity record follow-up, preserving its Markdown timestamp.
+    #[serde(rename = "nextFollowUpAt")]
+    pub next_follow_up_at: Option<String>,
     #[serde(rename = "fileSize")]
     pub file_size: u64,
     pub snippet: String,

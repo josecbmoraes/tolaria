@@ -53,7 +53,10 @@ pub use views::{
 
 use file::read_file_metadata;
 use frontmatter::{extract_fm_and_rels, resolve_is_a, resolve_note_display, resolve_note_width};
-use parsing::{count_body_words, extract_outgoing_links, extract_snippet, extract_title};
+use parsing::{
+    count_body_words, extract_next_follow_up_at, extract_outgoing_links, extract_snippet,
+    extract_title,
+};
 use type_templates::TypeTemplateSource;
 
 use gray_matter::engine::YAML;
@@ -117,6 +120,7 @@ pub fn parse_md_file(path: &Path, git_dates: Option<(u64, u64)>) -> Result<Vault
     let has_h1 = parsing::extract_h1_title(&content).is_some();
     let snippet = extract_snippet(&content);
     let word_count = count_body_words(&content);
+    let next_follow_up_at = extract_next_follow_up_at(&content);
     let outgoing_links = extract_outgoing_links(&parsed.content);
     let (fs_modified, fs_created, file_size) = read_file_metadata(path)?;
     let (modified_at, created_at) = resolve_entry_dates(fs_modified, fs_created, git_dates);
@@ -164,6 +168,7 @@ pub fn parse_md_file(path: &Path, git_dates: Option<(u64, u64)>) -> Result<Vault
         archived: frontmatter.archived.unwrap_or(false),
         modified_at,
         created_at,
+        next_follow_up_at,
         file_size,
         icon: frontmatter.icon.and_then(|v| v.into_scalar()),
         color: frontmatter.color.and_then(|v| v.into_scalar()),

@@ -18,6 +18,8 @@ pub(super) fn parse_test_entry(dir: &TempDir, name: &str, content: &str) -> Vaul
     parse_md_file(&dir.path().join(name), None).unwrap()
 }
 
+#[path = "mod_tests/activity_follow_up.rs"]
+mod activity_follow_up;
 #[path = "mod_tests/archival_metadata.rs"]
 mod archival_metadata;
 #[path = "mod_tests/basics.rs"]
