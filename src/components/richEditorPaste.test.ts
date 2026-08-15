@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
+import { BlockNoteEditor } from '@blocknote/core'
 import {
   createRichEditorPasteHandler,
   handleRichEditorPaste,
   type RichEditorPasteContext,
 } from './richEditorPaste'
+import { schema } from './editorSchema'
 
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
@@ -19,11 +21,25 @@ function clipboardDataFor(data: Record<string, string>): DataTransfer {
 function pasteContext(data: Record<string, string>): RichEditorPasteContext {
   return {
     defaultPasteHandler: vi.fn(() => true),
-    editor: { pasteText: vi.fn(() => true) },
+    editor: { pasteMarkdown: vi.fn(), pasteText: vi.fn(() => true) },
     event: {
       clipboardData: clipboardDataFor(data),
     } as unknown as ClipboardEvent,
   }
+}
+
+const angleOpen = String.fromCharCode(60)
+const angleClose = String.fromCharCode(62)
+const cppInclude = `#include ${angleOpen}iostream${angleClose}`
+const cppSource = `${cppInclude}\nint main() { return 0; }`
+const fencedCppSource = ['```', cppSource, '```'].join('\n')
+
+function htmlTag(name: string): string {
+  return `${angleOpen}${name}${angleClose}`
+}
+
+function htmlCodeBlock(markup: string): string {
+  return `${htmlTag('pre')}${htmlTag('code')}${markup}${htmlTag('/code')}${htmlTag('/pre')}`
 }
 
 describe('handleRichEditorPaste', () => {
@@ -60,6 +76,83 @@ describe('handleRichEditorPaste', () => {
     expect(handleRichEditorPaste(context)).toBe(true)
 
     expect(context.defaultPasteHandler).toHaveBeenCalledWith()
+    expect(context.editor.pasteText).not.toHaveBeenCalled()
+  })
+
+  it('preserves linked inline-code Markdown pasted as plain text', () => {
+    const context = pasteContext({
+      'text/plain': '[`some-symbol`](https://example.com)',
+    })
+    const editor = BlockNoteEditor.create({ schema })
+    context.editor = editor as unknown as RichEditorPasteContext['editor']
+
+    expect(handleRichEditorPaste(context)).toBe(true)
+
+    expect(editor.document[0].content).toEqual([{
+      content: [{ styles: { code: true }, text: 'some-symbol', type: 'text' }],
+      href: 'https://example.com',
+      type: 'link',
+    }])
+    expect(context.defaultPasteHandler).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'fenced code Markdown with angle brackets',
+      data: { 'text/plain': fencedCppSource },
+    },
+    {
+      name: 'pasted HTML code blocks',
+      data: {
+        'text/html': htmlCodeBlock('#include &lt;iostream&gt;\nint main() { return 0; }'),
+        'text/plain': cppSource,
+      },
+    },
+  ])('converts $name before literal text handling', ({ data }) => {
+    const context = pasteContext(data)
+
+    expect(handleRichEditorPaste(context)).toBe(true)
+
+    expect(context.editor.pasteMarkdown).toHaveBeenCalledWith(fencedCppSource)
+    expect(context.defaultPasteHandler).not.toHaveBeenCalled()
+    expect(context.editor.pasteText).not.toHaveBeenCalled()
+  })
+
+  it('does not parse untrusted HTML code without a plain-text clipboard source', () => {
+    const context = pasteContext({
+      'text/html': htmlCodeBlock('&lt;script&gt;window.compromised = true&lt;/script&gt;'),
+    })
+
+    expect(handleRichEditorPaste(context)).toBe(true)
+
+    expect(context.defaultPasteHandler).toHaveBeenCalledWith()
+    expect(context.editor.pasteMarkdown).not.toHaveBeenCalled()
+    expect(context.editor.pasteText).not.toHaveBeenCalled()
+  })
+
+  it('replaces an empty paragraph with a canonicalized pasted code block', () => {
+    const cursorBlock = { id: 'empty-paragraph', type: 'paragraph', content: [] }
+    const context = pasteContext({
+      'text/plain': '```ts\nconst answer: number = 42\n```',
+    })
+    context.editor = {
+      getTextCursorPosition: vi.fn(() => ({ block: cursorBlock })),
+      insertBlocks: vi.fn(),
+      pasteMarkdown: vi.fn(),
+      pasteText: vi.fn(() => true),
+      replaceBlocks: vi.fn(),
+    }
+
+    expect(handleRichEditorPaste(context)).toBe(true)
+
+    expect(context.editor.replaceBlocks).toHaveBeenCalledWith([cursorBlock], [{
+      children: [],
+      content: [{ styles: {}, text: 'const answer: number = 42', type: 'text' }],
+      props: { language: 'typescript' },
+      type: 'codeBlock',
+    }])
+    expect(context.editor.insertBlocks).not.toHaveBeenCalled()
+    expect(context.editor.pasteMarkdown).not.toHaveBeenCalled()
     expect(context.editor.pasteText).not.toHaveBeenCalled()
   })
 

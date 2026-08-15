@@ -12,11 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { translate, type AppLocale } from '../lib/i18n'
 import type { AiAgentId } from '../lib/aiAgents'
-import {
-  modelOptionsForAgent,
-  type AiAgentModelCatalog,
-  type AiAgentModelOption,
-} from '../lib/aiAgentModels'
+import { modelOptionsForAgent, type AiAgentModelCatalog, type AiAgentModelOption } from '../lib/aiAgentModels'
 import type { AiTarget } from '../lib/aiTargets'
 import type { AiWorkspaceTargetGroups } from './aiWorkspaceTargetGroups'
 import { AiAgentIcon } from './AiAgentIcon'
@@ -46,6 +42,8 @@ interface SelectedModelPresentation {
   accessibleLabel: string
   label: string
 }
+
+type AgentTarget = Extract<AiTarget, { kind: 'agent' }>
 
 function choiceValue(targetId: string, modelId: string | null): string {
   return JSON.stringify([targetId, modelId])
@@ -80,7 +78,9 @@ function DirectTargetGroup({ label, targets }: { label: string; targets: AiTarge
       <DropdownMenuLabel>{label}</DropdownMenuLabel>
       {targets.map((target) => (
         <DropdownMenuRadioItem key={target.id} value={choiceValue(target.id, null)}>
-          <span className="truncate" title={target.label}>{target.label}</span>
+          <span className="truncate" title={target.label}>
+            {target.label}
+          </span>
         </DropdownMenuRadioItem>
       ))}
     </>
@@ -93,18 +93,35 @@ function selectedModelPresentation(
   selectedModelId: string,
   selectedTarget: AiTarget,
 ): SelectedModelPresentation {
-  const selectedModel = modelOptions.find((option) => option.id === selectedModelId)
   if (selectedTarget.kind !== 'agent') {
-    return {
-      accessibleLabel: `${translate(locale, 'ai.workspace.targetLabel')}: ${selectedTarget.label}`,
-      label: selectedTarget.shortLabel,
-    }
+    return directTargetPresentation(locale, selectedTarget)
   }
+  return agentTargetPresentation(locale, modelOptions, selectedModelId, selectedTarget)
+}
+
+function directTargetPresentation(locale: AppLocale, target: AiTarget): SelectedModelPresentation {
+  return {
+    accessibleLabel: `${translate(locale, 'ai.workspace.targetLabel')}: ${target.label}`,
+    label: target.shortLabel,
+  }
+}
+
+function agentTargetPresentation(
+  locale: AppLocale,
+  modelOptions: AiAgentModelOption[],
+  selectedModelId: string,
+  selectedTarget: AgentTarget,
+): SelectedModelPresentation {
+  const selectedModel = modelOptions.find((option) => option.id === selectedModelId)
   const modelLabel = selectedModel?.label ?? translate(locale, 'ai.workspace.modelDefault')
   return {
     accessibleLabel: `${translate(locale, 'ai.workspace.targetLabel')}: ${selectedTarget.label}, ${translate(locale, 'ai.workspace.modelLabel')}: ${modelLabel}`,
-    label: selectedModelId ? selectedModel?.label ?? selectedTarget.shortLabel : selectedTarget.shortLabel,
+    label: selectedModelId ? (selectedModel?.label ?? selectedTarget.shortLabel) : selectedTarget.shortLabel,
   }
+}
+
+function isAgentTarget(target: AiTarget): target is AgentTarget {
+  return target.kind === 'agent'
 }
 
 function AiTargetModelTrigger({
@@ -139,16 +156,18 @@ function AiTargetModelTrigger({
   )
 }
 
-function AgentTargetGroups({
+function AgentTargetGroup({
   catalog,
   defaultLabel,
-  targets,
+  index,
+  target,
 }: {
   catalog: AiAgentModelCatalog
   defaultLabel: string
-  targets: AiTarget[]
+  index: number
+  target: AgentTarget
 }) {
-  return targets.map((target, index) => target.kind === 'agent' && (
+  return (
     <Fragment key={target.id}>
       {index > 0 && <DropdownMenuSeparator />}
       <DropdownMenuLabel className="flex items-center gap-2">
@@ -161,10 +180,22 @@ function AgentTargetGroups({
           value={choiceValue(target.id, model.id)}
           aria-label={`${target.label}, ${model.label}`}
         >
-          <span className="truncate" title={model.label}>{model.label}</span>
+          <span className="truncate" title={model.label}>
+            {model.label}
+          </span>
         </DropdownMenuRadioItem>
       ))}
     </Fragment>
+  )
+}
+
+function AgentTargetGroups({ catalog, defaultLabel, targets }: {
+  catalog: AiAgentModelCatalog
+  defaultLabel: string
+  targets: AiTarget[]
+}) {
+  return targets.filter(isAgentTarget).map((target, index) => (
+    <AgentTargetGroup key={target.id} {...{ catalog, defaultLabel, index, target }} />
   ))
 }
 
@@ -196,30 +227,33 @@ function selectedChoiceValue(selectedTarget: AiTarget, selectedModelId: string):
   return choiceValue(selectedTarget.id, modelId)
 }
 
-export function AiTargetModelPicker({
-  catalog,
-  catalogReady,
-  disabled,
-  groups,
-  locale,
-  modelOptions,
-  onSelectAgentModel,
-  onSelectTarget,
-  selectedModelId,
-  selectedTarget,
-  side,
-}: AiTargetModelPickerProps) {
+export function AiTargetModelPicker(options: AiTargetModelPickerProps) {
+  const {
+    catalog,
+    catalogReady,
+    disabled,
+    groups,
+    locale,
+    modelOptions,
+    onSelectAgentModel,
+    onSelectTarget,
+    selectedModelId,
+    selectedTarget,
+    side,
+  } = options
   const defaultLabel = translate(locale, 'ai.workspace.modelDefault')
   const choices = targetModelChoices(groups, catalog, defaultLabel)
   const presentation = selectedModelPresentation(locale, modelOptions, selectedModelId, selectedTarget)
   const selectedValue = selectedChoiceValue(selectedTarget, selectedModelId)
-  const handleChange = (value: string) => selectTargetModelChoice({
+  const handleChange = (value: string) => {
+    selectTargetModelChoice({
     choices,
     onSelectAgentModel,
     onSelectTarget,
     selectedTargetId: selectedTarget.id,
     value,
   })
+  }
 
   return (
     <DropdownMenu>

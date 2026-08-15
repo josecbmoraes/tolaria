@@ -1,4 +1,4 @@
-import { ArrowSquareOut as ExternalLink, Copy } from '@phosphor-icons/react'
+import { ArrowSquareOut as ExternalLink, Copy, Plus } from '@phosphor-icons/react'
 import { Component, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   GridSuggestionMenuController,
@@ -11,7 +11,7 @@ import {
   SideMenuController,
   SuggestionMenuController,
   useComponentsContext,
-  useCreateBlockNote,
+  type useCreateBlockNote,
   useDictionary,
   type DefaultReactGridSuggestionItem,
   type LinkToolbarProps,
@@ -29,28 +29,24 @@ import { writeClipboardText } from '../utils/clipboardText'
 import { buildTypeEntryMap } from '../utils/typeColors'
 import { searchEmojis, type EmojiEntry } from '../utils/emoji'
 import { preFilterWikilinks, deduplicateByPath, MIN_QUERY_LENGTH } from '../utils/wikilinkSuggestions'
-import { attachClickHandlers, enrichSuggestionItems, hasMultipleSuggestionWorkspaces } from '../utils/suggestionEnrichment'
+import { resolveEntry } from '../utils/wikilink'
+import {
+  attachClickHandlers,
+  enrichSuggestionItems,
+  hasMultipleSuggestionWorkspaces,
+} from '../utils/suggestionEnrichment'
 import { observeNativeTextAssistanceDisabled } from '../lib/nativeTextAssistance'
 import { getRuntimeStyleNonce } from '../lib/runtimeStyleNonce'
 import { WikilinkSuggestionMenu, type WikilinkSuggestionItem } from './WikilinkSuggestionMenu'
 import type { VaultEntry } from '../types'
 import { _wikilinkEntriesRef } from './editorSchema'
-import {
-  handleEditorFileBlockClick,
-  openEditorAttachmentOrUrl,
-} from './editorAttachmentActions'
+import { handleEditorFileBlockClick, openEditorAttachmentOrUrl } from './editorAttachmentActions'
 import { insertImageBlockAfterCursor } from './editorImageInsertion'
 import { useBlockNoteSideMenuHoverGuard } from './blockNoteSideMenuHoverGuard'
 import { getTolariaSlashMenuItems } from './tolariaEditorFormattingConfig'
 import { TolariaSlashMenu } from './TolariaSlashMenu'
-import {
-  TolariaFormattingToolbar,
-  TolariaFormattingToolbarController,
-} from './tolariaEditorFormatting'
-import {
-  TolariaCollapsedHeadingsController,
-  TolariaSideMenu,
-} from './tolariaBlockNoteSideMenu'
+import { TolariaFormattingToolbar, TolariaFormattingToolbarController } from './tolariaEditorFormatting'
+import { TolariaCollapsedHeadingsController, TolariaSideMenu } from './tolariaBlockNoteSideMenu'
 import { useEditorLinkActivation } from './useEditorLinkActivation'
 import { findNearestTextCursorBlock } from './blockNoteCursorTarget'
 import { ImageLightbox } from './ImageLightbox'
@@ -71,10 +67,7 @@ import {
   type BlockNoteRenderRecoveryReason,
 } from './blockNoteRenderRecovery'
 import { repairEditorDocumentForRenderRecovery } from './blockNoteRenderRecoveryDocument'
-import {
-  queueTitleHeadingCursorRepair,
-  useEditorPasteHandler,
-} from './titleHeadingInteractions'
+import { queueTitleHeadingCursorRepair, useEditorPasteHandler } from './titleHeadingInteractions'
 import {
   applyTiptapTextSelection,
   getTiptapSelectionBridge,
@@ -126,6 +119,7 @@ const TOOLBAR_MOUSE_DOWN_ALLOW_SELECTOR = [
 ].join(', ')
 const MAX_BLOCKNOTE_RENDER_RECOVERY_RETRIES = 1
 const EMOJI_SHORTCODE_RESULT_LIMIT = 80
+const WIKILINK_AUTOCOMPLETE_RESULT_LIMIT = 20
 const ignoreActivityRecordEdit: (recordId: string) => void = () => {}
 const ignoreOpenActivityRaw = () => {}
 
@@ -146,10 +140,13 @@ type BlockNoteRenderRecoveryState = {
   retries: number
 }
 
-class BlockNoteRenderRecoveryBoundary extends Component<{
+class BlockNoteRenderRecoveryBoundary extends Component<
+  {
   children: (recoveryKey: number) => ReactNode
   onRecover?: (attempt: number, reason: BlockNoteRenderRecoveryReason) => void
-}, BlockNoteRenderRecoveryState> {
+  },
+  BlockNoteRenderRecoveryState
+> {
   state: BlockNoteRenderRecoveryState = {
     error: null,
     recoveryKey: 0,
@@ -179,8 +176,8 @@ class BlockNoteRenderRecoveryBoundary extends Component<{
   render() {
     if (this.state.error) {
       if (
-        !isRecoverableBlockNoteRenderError(this.state.error)
-        || this.state.retries >= MAX_BLOCKNOTE_RENDER_RECOVERY_RETRIES
+        !isRecoverableBlockNoteRenderError(this.state.error) ||
+        this.state.retries >= MAX_BLOCKNOTE_RENDER_RECOVERY_RETRIES
       ) {
         throw this.state.error
       }
@@ -272,9 +269,7 @@ function shouldAllowToolbarMouseDown(target: HTMLElement) {
   return Boolean(target.closest(TOOLBAR_MOUSE_DOWN_ALLOW_SELECTOR))
 }
 
-function handleToolbarMouseDownCapture(
-  event: Pick<React.MouseEvent<HTMLElement>, 'target' | 'preventDefault'>,
-) {
+function handleToolbarMouseDownCapture(event: Pick<React.MouseEvent<HTMLElement>, 'target' | 'preventDefault'>) {
   if (!(event.target instanceof HTMLElement) || shouldAllowToolbarMouseDown(event.target)) {
     return
   }
@@ -282,11 +277,14 @@ function handleToolbarMouseDownCapture(
   event.preventDefault()
 }
 
-function TolariaOpenLinkButton({
-  url,
-  vaultPath,
-}: Pick<LinkToolbarProps, 'url'> & { vaultPath?: string }) {
-  const Components = useComponentsContext()!
+function useRequiredComponentsContext() {
+  const components = useComponentsContext()
+  if (!components) throw new Error('BlockNote components context is unavailable')
+  return components
+}
+
+function TolariaOpenLinkButton({ url, vaultPath }: Pick<LinkToolbarProps, 'url'> & { vaultPath?: string }) {
+  const Components = useRequiredComponentsContext()
   const dict = useDictionary()
   const handleOpen = useCallback(() => {
     openEditorAttachmentOrUrl({ url, vaultPath, source: 'link' })
@@ -315,18 +313,12 @@ function TolariaLinkToolbar({ vaultPath, ...props }: LinkToolbarProps & { vaultP
         setToolbarPositionFrozen={props.setToolbarPositionFrozen}
       />
       <TolariaOpenLinkButton url={props.url} vaultPath={vaultPath} />
-      <DeleteLinkButton
-        range={props.range}
-        setToolbarOpen={props.setToolbarOpen}
-      />
+      <DeleteLinkButton range={props.range} setToolbarOpen={props.setToolbarOpen} />
     </LinkToolbar>
   )
 }
 
-function applySeededColumnWidths(
-  parsedBlocks: Array<TestTableBlock>,
-  columnWidths?: Array<number | null>,
-) {
+function applySeededColumnWidths(parsedBlocks: Array<TestTableBlock>, columnWidths?: Array<number | null>) {
   if (!columnWidths) return
 
   const tableBlock = parsedBlocks[0]
@@ -342,9 +334,9 @@ async function seedEditorWithTestTable(
   editor: ReturnType<typeof useCreateBlockNote>,
   columnWidths?: Array<number | null>,
 ) {
-  const parsedBlocks = await Promise.resolve(
+  const parsedBlocks = (await Promise.resolve(
     editor.tryParseMarkdownToBlocks(TEST_TABLE_MARKDOWN),
-  ) as Array<TestTableBlock>
+  )) as Array<TestTableBlock>
 
   applySeededColumnWidths(parsedBlocks, columnWidths)
 
@@ -358,9 +350,7 @@ async function seedEditorWithTestTable(
 
 function useSeedBlockNoteTableBridge(editor: ReturnType<typeof useCreateBlockNote>) {
   useEffect(() => {
-    const seedBlockNoteTable = (columnWidths?: Array<number | null>) => (
-      seedEditorWithTestTable(editor, columnWidths)
-    )
+    const seedBlockNoteTable = (columnWidths?: Array<number | null>) => seedEditorWithTestTable(editor, columnWidths)
 
     window.__laputaTest = {
       ...window.__laputaTest,
@@ -379,10 +369,44 @@ function shouldIgnoreContainerClick(target: HTMLElement) {
   return Boolean(target.closest(CONTAINER_CLICK_IGNORE_SELECTOR))
 }
 
+function selectionIsInsideContainer(container: HTMLElement): boolean {
+  const selection = window.getSelection()
+  const anchorNode = selection?.rangeCount ? selection.anchorNode : null
+  return anchorNode !== null && container.contains(anchorNode)
+}
+
+function isUnmodifiedPrimaryClick(event: React.MouseEvent<HTMLDivElement>): boolean {
+  const modifierPressed = [event.metaKey, event.ctrlKey, event.altKey, event.shiftKey].some(Boolean)
+  return event.button === 0 && !modifierPressed
+}
+
+function editableClickNeedsCaretRecovery(container: HTMLElement, target: HTMLElement): boolean {
+  const clickedEditableContent = target.closest('[contenteditable="true"]') !== null
+  return clickedEditableContent && !selectionIsInsideContainer(container)
+}
+
+function recoverMissingEditableSelection(options: {
+  container: HTMLElement
+  editor: ReturnType<typeof useCreateBlockNote>
+  event: React.MouseEvent<HTMLDivElement>
+  target: HTMLElement
+}): boolean {
+  const { container, editor, event, target } = options
+  if (!isUnmodifiedPrimaryClick(event)) return false
+  if (!editableClickNeedsCaretRecovery(container, target)) return false
+
+  const tiptapEditor = getTiptapSelectionBridge(editor)
+  if (!tiptapEditor) return false
+
+  const position = textPositionAtEditorPoint(tiptapEditor, event)
+  if (position === null) return false
+
+  editor.focus()
+  return applyTiptapTextSelection(tiptapEditor, position, position)
+}
+
 function normalizeSuggestionQuery(query: string, triggerCharacter: string): string {
-  return query.startsWith(triggerCharacter)
-    ? query.slice(triggerCharacter.length)
-    : query
+  return query.startsWith(triggerCharacter) ? query.slice(triggerCharacter.length) : query
 }
 
 function emojiSuggestionRank(entry: EmojiEntry, query: string): number {
@@ -390,7 +414,7 @@ function emojiSuggestionRank(entry: EmojiEntry, query: string): number {
   const tokens = normalizedName.split(/[^a-z0-9]+/).filter(Boolean)
   if (normalizedName === query) return 0
   if (tokens.includes(query)) return 1
-  if (tokens.some(token => token.startsWith(query))) return 2
+  if (tokens.some((token) => token.startsWith(query))) return 2
   if (normalizedName.startsWith(query)) return 3
   return 4
 }
@@ -415,26 +439,34 @@ function codeBlockCopyTarget(codeBlock: HTMLElement, container: HTMLElement): Co
 }
 
 function sameCopyTarget(left: CodeBlockCopyTarget | null, right: CodeBlockCopyTarget): boolean {
-  return Boolean(
-    left
-      && left.codeBlock === right.codeBlock
-      && left.left === right.left
-      && left.top === right.top,
-  )
+  return Boolean(left && left.codeBlock === right.codeBlock && left.left === right.left && left.top === right.top)
+}
+
+function stopCopyButtonEvent(event: React.MouseEvent<HTMLButtonElement>): void {
+  event.preventDefault()
+  event.stopPropagation()
+}
+
+function reportCopyFailure(error: unknown): void {
+  console.warn('[editor] Failed to copy code block:', error)
 }
 
 function useCodeBlockCopyTarget(containerRef: React.RefObject<HTMLDivElement | null>) {
   const [copyTarget, setCopyTarget] = useState<CodeBlockCopyTarget | null>(null)
 
-  const showCopyTarget = useCallback((codeBlock: HTMLElement) => {
+  const showCopyTarget = useCallback(
+    (codeBlock: HTMLElement) => {
     const container = containerRef.current
-    if (!container || !container.contains(codeBlock)) return
+      if (!container?.contains(codeBlock)) return
 
     const nextTarget = codeBlockCopyTarget(codeBlock, container)
-    setCopyTarget((previous) => sameCopyTarget(previous, nextTarget) ? previous : nextTarget)
-  }, [containerRef])
+      setCopyTarget((previous) => (sameCopyTarget(previous, nextTarget) ? previous : nextTarget))
+    },
+    [containerRef],
+  )
 
-  const updateFromEventTarget = useCallback((target: EventTarget | null) => {
+  const updateFromEventTarget = useCallback(
+    (target: EventTarget | null) => {
     const container = containerRef.current
     if (!(target instanceof HTMLElement) || !container) return
     if (target.closest('[data-editor-code-copy]')) return
@@ -446,15 +478,23 @@ function useCodeBlockCopyTarget(containerRef: React.RefObject<HTMLDivElement | n
     }
 
     setCopyTarget(null)
-  }, [containerRef, showCopyTarget])
+    },
+    [containerRef, showCopyTarget],
+  )
 
-  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
     updateFromEventTarget(event.target)
-  }, [updateFromEventTarget])
+    },
+    [updateFromEventTarget],
+  )
 
-  const handleFocus = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
+  const handleFocus = useCallback(
+    (event: React.FocusEvent<HTMLDivElement>) => {
     updateFromEventTarget(event.target)
-  }, [updateFromEventTarget])
+    },
+    [updateFromEventTarget],
+  )
 
   const clearCopyTarget = useCallback(() => setCopyTarget(null), [])
 
@@ -471,9 +511,9 @@ function CodeBlockCopyButton({ copyTarget, locale }: { copyTarget: CodeBlockCopy
     if (resetTimerRef.current !== null) window.clearTimeout(resetTimerRef.current)
   }, [])
 
-  const handleCopy = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
+  const handleCopy = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+    stopCopyButtonEvent(event)
 
     void writeClipboardText(codeBlockText(copyTarget.codeBlock))
       .then(() => {
@@ -485,10 +525,10 @@ function CodeBlockCopyButton({ copyTarget, locale }: { copyTarget: CodeBlockCopy
           resetTimerRef.current = null
         }, CODE_BLOCK_COPY_RESET_MS)
       })
-      .catch((error) => {
-        console.warn('[editor] Failed to copy code block:', error)
-      })
-  }, [copyTarget])
+      .catch(reportCopyFailure)
+    },
+    [copyTarget],
+  )
 
   const stopEditorMouseDown = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
@@ -565,18 +605,12 @@ function whitespaceSelectionStartFromEvent(options: {
 }
 
 function movedPastDragThreshold(state: WhitespaceDragState, point: EditorClientPoint): boolean {
-  const movedDistance = Math.max(
-    Math.abs(point.clientX - state.startX),
-    Math.abs(point.clientY - state.startY),
-  )
+  const movedDistance = Math.max(Math.abs(point.clientX - state.startX), Math.abs(point.clientY - state.startY))
 
   return movedDistance >= DRAG_SELECTION_THRESHOLD_PX
 }
 
-function updateWhitespaceDragSelection(
-  state: WhitespaceDragState,
-  point: EditorClientPoint,
-): boolean {
+function updateWhitespaceDragSelection(state: WhitespaceDragState, point: EditorClientPoint): boolean {
   const head = textPositionAtEditorPoint(state.tiptapEditor, point)
   if (head === null) return false
 
@@ -663,14 +697,15 @@ function useEditorWhitespaceMouseSelection(options: {
   const { containerRef, editable, editor, suppressNextContainerClickRef } = options
   const cleanupDragRef = useRef<(() => void) | null>(null)
 
-  useEffect(() => () => {
+  useEffect(
+    () => () => {
     cleanupDragRef.current?.()
-  }, [])
+    },
+    [],
+  )
 
-  const beginWhitespaceSelection = useCallback((
-    event: WhitespaceMouseDownEvent,
-    selectionRoot: HTMLElement,
-  ) => {
+  const beginWhitespaceSelection = useCallback(
+    (event: WhitespaceMouseDownEvent, selectionRoot: HTMLElement) => {
     const selectionStart = whitespaceSelectionStartFromEvent({
       editable,
       editor,
@@ -698,18 +733,26 @@ function useEditorWhitespaceMouseSelection(options: {
       state,
       suppressNextContainerClickRef,
     })
-  }, [editable, editor, suppressNextContainerClickRef])
+    },
+    [editable, editor, suppressNextContainerClickRef],
+  )
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    return installScrollAreaWhitespaceSelection({ beginWhitespaceSelection, container })
+    return installScrollAreaWhitespaceSelection({
+      beginWhitespaceSelection,
+      container,
+    })
   }, [beginWhitespaceSelection, containerRef])
 
-  return useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+  return useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
     beginWhitespaceSelection(event, event.currentTarget)
-  }, [beginWhitespaceSelection])
+    },
+    [beginWhitespaceSelection],
+  )
 }
 
 function useEditorContainerClickHandler(options: {
@@ -720,7 +763,8 @@ function useEditorContainerClickHandler(options: {
 }) {
   const { editable, editor, suppressNextContainerClickRef, vaultPath } = options
 
-  return useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  return useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
     if (!editable) return
     if (suppressNextContainerClickRef.current) {
       suppressNextContainerClickRef.current = false
@@ -732,7 +776,15 @@ function useEditorContainerClickHandler(options: {
     const target = eventTargetElement(e.target)
     if (!target) return
     if (queueTitleHeadingCursorRepair(target, editor)) return
-    if (shouldIgnoreContainerClick(target)) return
+    if (shouldIgnoreContainerClick(target)) {
+      recoverMissingEditableSelection({
+        container: e.currentTarget,
+        editor,
+        event: e,
+        target,
+      })
+      return
+    }
     const blocks = editor.document
     if (blocks.length > 0) {
       const targetBlock = findNearestTextCursorBlock(blocks, blocks.length - 1)
@@ -745,7 +797,9 @@ function useEditorContainerClickHandler(options: {
       }
     }
     editor.focus()
-  }, [editor, editable, suppressNextContainerClickRef, vaultPath])
+    },
+    [editor, editable, suppressNextContainerClickRef, vaultPath],
+  )
 }
 
 function useCompositionAwareEditorChange(options: {
@@ -837,10 +891,7 @@ function handleSelectedEditorCopy(
   event.preventDefault()
 }
 
-function handleEditorCopy(
-  event: React.ClipboardEvent<HTMLDivElement>,
-  editor: ReturnType<typeof useCreateBlockNote>,
-) {
+function handleEditorCopy(event: React.ClipboardEvent<HTMLDivElement>, editor: ReturnType<typeof useCreateBlockNote>) {
   if (handleCodeBlockCopy(event)) return
 
   handleSelectedEditorCopy(event, editor)
@@ -859,13 +910,12 @@ function pathStem(path: string): string {
 }
 
 function safeStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => nonEmptyString(item) !== null)
-    : []
+  return Array.isArray(value) ? value.filter((item): item is string => nonEmptyString(item) !== null) : []
 }
 
 function buildBaseSuggestionItems(entries: VaultEntry[]) {
-  return deduplicateByPath(entries.flatMap(entry => {
+  return deduplicateByPath(
+    entries.flatMap((entry) => {
     const path = nonEmptyString(entry.path)
     if (!path) return []
 
@@ -873,7 +923,8 @@ function buildBaseSuggestionItems(entries: VaultEntry[]) {
     const filenameStem = filename ? markdownStem(filename) : pathStem(path)
     const title = nonEmptyString(entry.title) ?? filenameStem
     const entryType = nonEmptyString(entry.isA)
-    return [{
+      return [
+        {
       title,
       aliases: [...new Set([filenameStem, ...safeStringArray(entry.aliases)])],
       group: entryType ?? 'Note',
@@ -881,50 +932,59 @@ function buildBaseSuggestionItems(entries: VaultEntry[]) {
       entryType,
       entryTitle: title,
       path,
-    }]
-  }))
+        },
+      ]
+    }),
+  )
 }
 
 function useInsertWikilink(
   editor: ReturnType<typeof useCreateBlockNote>,
   runEditorAction: (action: SuggestionAction) => void,
 ) {
-  return useCallback((target: string, triggerCharacter: WikilinkAutocompleteTrigger) => {
+  return useCallback(
+    (target: string, triggerCharacter: WikilinkAutocompleteTrigger) => {
     runEditorAction(() => {
-      editor.insertInlineContent([
-        { type: 'wikilink' as const, props: { target } },
-        " ",
-      ], { updateSelection: true })
+        editor.insertInlineContent([{ type: 'wikilink' as const, props: { target } }, ' '], { updateSelection: true })
       trackEvent('wikilink_inserted', {
         trigger: triggerCharacter === '@' ? 'at' : 'brackets',
       })
     })
-  }, [editor, runEditorAction])
+    },
+    [editor, runEditorAction],
+  )
+}
+
+function unresolvedWikilinkCreationItem(
+  query: string,
+  label: string,
+  onCreate: () => void,
+): WikilinkSuggestionItem {
+  return {
+    title: label,
+    path: `__create__:${query}`,
+    TypeIcon: Plus,
+    onItemClick: onCreate,
+  }
 }
 
 function useSuggestionMenuItems(options: {
   baseItems: ReturnType<typeof buildBaseSuggestionItems>
   editor: ReturnType<typeof useCreateBlockNote>
+  entries: VaultEntry[]
   insertWikilink: (target: string, triggerCharacter: WikilinkAutocompleteTrigger) => void
   locale: AppLocale
+  onNavigateWikilink: (target: string) => void
   runEditorAction: (action: SuggestionAction) => void
   sourceEntry?: VaultEntry
   typeEntryMap: Record<string, VaultEntry>
   vaultPath?: string
 }) {
-  const {
-    baseItems,
-    editor,
-    insertWikilink,
-    locale,
-    runEditorAction,
-    sourceEntry,
-    typeEntryMap,
-    vaultPath,
-  } = options
+  const { baseItems, editor, entries, insertWikilink, locale, onNavigateWikilink, runEditorAction, sourceEntry, typeEntryMap, vaultPath } = options
   const t = useMemo(() => createTranslator(locale), [locale])
 
-  const buildItems = useCallback((query: string, triggerCharacter: WikilinkAutocompleteTrigger) => {
+  const buildItems = useCallback(
+    (query: string, triggerCharacter: WikilinkAutocompleteTrigger) => {
     const normalizedQuery = normalizeSuggestionQuery(query, triggerCharacter)
     if (normalizedQuery.length < MIN_QUERY_LENGTH) return null
 
@@ -935,23 +995,32 @@ function useSuggestionMenuItems(options: {
       vaultPath ?? '',
       sourceEntry,
     )
-    return guardSuggestionMenuItems(
+    const matchedItems = guardSuggestionMenuItems(
       enrichSuggestionItems(items, normalizedQuery, typeEntryMap, {
         showWorkspace: hasMultipleSuggestionWorkspaces(baseItems),
       }),
       runEditorAction,
     )
-  }, [baseItems, insertWikilink, runEditorAction, sourceEntry, typeEntryMap, vaultPath])
+    if (!sourceEntry || triggerCharacter !== '[[' || resolveEntry(entries, normalizedQuery, sourceEntry)) return matchedItems
 
-  const getWikilinkItems = useCallback(async (query: string): Promise<WikilinkSuggestionItem[]> => (
-    buildItems(query, '[[') ?? []
-  ), [buildItems])
+    return [...matchedItems.slice(0, WIKILINK_AUTOCOMPLETE_RESULT_LIMIT - 1), unresolvedWikilinkCreationItem(
+      normalizedQuery,
+      t('editor.wikilink.createNote', { title: normalizedQuery }),
+      () => {
+        insertWikilink(normalizedQuery, triggerCharacter)
+        onNavigateWikilink(normalizedQuery)
+      },
+    )]
+    },
+    [baseItems, entries, insertWikilink, onNavigateWikilink, runEditorAction, sourceEntry, t, typeEntryMap, vaultPath],
+  )
 
-  const getAtWikilinkItems = useCallback(async (query: string): Promise<WikilinkSuggestionItem[]> => (
-    buildItems(query, '@') ?? []
-  ), [buildItems])
+  const getWikilinkItems = useCallback(async (query: string): Promise<WikilinkSuggestionItem[]> => buildItems(query, '[[') ?? [], [buildItems])
 
-  const getEmojiItems = useCallback(async (query: string): Promise<EmojiSuggestionItem[]> => {
+  const getAtWikilinkItems = useCallback(async (query: string): Promise<WikilinkSuggestionItem[]> => buildItems(query, '@') ?? [], [buildItems])
+
+  const getEmojiItems = useCallback(
+    async (query: string): Promise<EmojiSuggestionItem[]> => {
     const normalizedQuery = normalizeSuggestionQuery(query, ':').trim().toLowerCase()
     if (!normalizedQuery) return []
 
@@ -968,17 +1037,23 @@ function useSuggestionMenuItems(options: {
         group: entry.group,
         onItemClick: () => {
           runEditorAction(() => {
-            editor.insertInlineContent(entry.emoji, { updateSelection: true })
+              editor.insertInlineContent(entry.emoji, {
+                updateSelection: true,
+              })
             trackEvent('emoji_shortcode_inserted', { group: entry.group })
           })
         },
       }))
-  }, [editor, runEditorAction])
+    },
+    [editor, runEditorAction],
+  )
 
-  const getSlashMenuItems = useCallback(async (query: string) => {
+  const getSlashMenuItems = useCallback(
+    async (query: string) => {
     try {
       return guardSuggestionMenuItems(
-        await Promise.resolve(getTolariaSlashMenuItems(editor, query, {
+          await Promise.resolve(
+            getTolariaSlashMenuItems(editor, query, {
           calloutTitle: t('editor.slash.callout'),
           calloutTypeTitles: {
             abstract: t('editor.slash.callout.abstract'),
@@ -1000,14 +1075,17 @@ function useSuggestionMenuItems(options: {
           htmlTitle: t('editor.slash.htmlBlock'),
           mathTitle: t('editor.slash.math'),
           timeTitle: t('editor.slash.time'),
-        })),
+            }),
+          ),
         runEditorAction,
       )
     } catch (error) {
       console.warn('[editor] Ignored stale slash menu query:', error)
       return []
     }
-  }, [editor, runEditorAction, t])
+    },
+    [editor, runEditorAction, t],
+  )
 
   return {
     getWikilinkItems,
@@ -1032,18 +1110,14 @@ function EditorInteractionControllers({
   runEditorAction,
   vaultPath,
 }: EditorInteractionControllersProps) {
-  const sideMenu = useCallback((props: SideMenuProps) => (
-    <TolariaSideMenu {...props} locale={locale} />
-  ), [locale])
+  const sideMenu = useCallback((props: SideMenuProps) => <TolariaSideMenu {...props} locale={locale} />, [locale])
 
   return (
     <>
       <TolariaCollapsedHeadingsController />
       <SideMenuController sideMenu={sideMenu} />
       <TolariaFormattingToolbarController
-        formattingToolbar={(props) => (
-          <TolariaFormattingToolbar {...props} locale={locale} vaultPath={vaultPath} />
-        )}
+        formattingToolbar={(props) => <TolariaFormattingToolbar {...props} locale={locale} vaultPath={vaultPath} />}
         floatingUIOptions={{
           elementProps: {
             onMouseDownCapture: handleToolbarMouseDownCapture,
@@ -1051,9 +1125,7 @@ function EditorInteractionControllers({
         }}
       />
       <LinkToolbarController
-        linkToolbar={(props) => (
-          <TolariaLinkToolbar {...props} vaultPath={vaultPath} />
-        )}
+        linkToolbar={(props) => <TolariaLinkToolbar {...props} vaultPath={vaultPath} />}
         floatingUIOptions={{
           elementProps: {
             onMouseDownCapture: handleToolbarMouseDownCapture,
@@ -1065,12 +1137,7 @@ function EditorInteractionControllers({
         getItems={getSlashMenuItems}
         suggestionMenuComponent={TolariaSlashMenu}
       />
-      <GridSuggestionMenuController
-        triggerCharacter=":"
-        columns={10}
-        minQueryLength={1}
-        getItems={getEmojiItems}
-      />
+      <GridSuggestionMenuController triggerCharacter=":" columns={10} minQueryLength={1} getItems={getEmojiItems} />
       <SuggestionMenuController
         triggerCharacter="[["
         getItems={getWikilinkItems}
@@ -1090,7 +1157,9 @@ function EditorInteractionControllers({
 /** Insert an image block after the current cursor position. */
 function useInsertImageCallback(editor: ReturnType<typeof useCreateBlockNote>) {
   const editorRef = useRef(editor)
-  useEffect(() => { editorRef.current = editor }, [editor])
+  useEffect(() => {
+    editorRef.current = editor
+  }, [editor])
   return useCallback((url: string) => {
     insertImageBlockAfterCursor(editorRef.current, url)
   }, [])
@@ -1165,18 +1234,19 @@ type EditorWithCodeBlockHighlightRefreshView = {
 }
 
 function clearCodeBlockHighlightCache(view: CodeBlockHighlightRefreshView) {
-  const pluginKey = Object.keys(view.state.config?.pluginsByKey ?? {})
-    .find((key) => key.startsWith(PROSEMIRROR_HIGHLIGHT_PLUGIN_KEY_PREFIX))
+  const pluginKey = Object.keys(view.state.config?.pluginsByKey ?? {}).find((key) =>
+    key.startsWith(PROSEMIRROR_HIGHLIGHT_PLUGIN_KEY_PREFIX),
+  )
   if (!pluginKey) return
 
-  const pluginState = (view.state as Record<string, unknown>)[pluginKey]
-  if (typeof pluginState !== 'object' || pluginState === null) return
-
-  const decorationCache = (pluginState as { cache?: unknown }).cache
-  if (typeof decorationCache !== 'object' || decorationCache === null) return
-
-  const cacheMap = (decorationCache as { cache?: unknown }).cache
+  const pluginState = recordValue(Reflect.get(view.state, pluginKey))
+  const decorationCache = recordValue(pluginState?.cache)
+  const cacheMap = decorationCache?.cache
   if (cacheMap instanceof Map) cacheMap.clear()
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null
 }
 
 function codeBlockHighlightRefreshView(editor: ReturnType<typeof useCreateBlockNote>) {
@@ -1195,7 +1265,7 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
 }
 
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
-export function SingleEditorView({ currentContent = '', editor, entries, onNavigateWikilink, onChange, onImageImportError, onEditActivityRecord = ignoreActivityRecordEdit, onOpenRaw = ignoreOpenActivityRaw, sourceEntry, vaultPath, editable = true, locale = 'en' }: {
+export function SingleEditorView(options: {
   currentContent?: string
   editor: ReturnType<typeof useCreateBlockNote>
   entries: VaultEntry[]
@@ -1209,6 +1279,7 @@ export function SingleEditorView({ currentContent = '', editor, entries, onNavig
   editable?: boolean
   locale?: AppLocale
 }) {
+  const { currentContent = '', editor, entries, onNavigateWikilink, onChange, onEditActivityRecord = ignoreActivityRecordEdit, onImageImportError, onOpenRaw = ignoreOpenActivityRaw, sourceEntry, vaultPath, editable = true, locale = 'en' } = options
   const { cssVars } = useEditorTheme()
   const themeMode = useDocumentThemeMode()
   const previousThemeModeRef = useRef(themeMode)
@@ -1226,9 +1297,17 @@ export function SingleEditorView({ currentContent = '', editor, entries, onNavig
     editor,
     suppressNextContainerClickRef,
   })
-  const handleEditorChange = useCompositionAwareEditorChange({ containerRef, onChange })
+  const handleEditorChange = useCompositionAwareEditorChange({
+    containerRef,
+    onChange,
+  })
   const onImageUrl = useInsertImageCallback(editor)
-  const { isDragOver } = useImageDrop({ containerRef, onImageImportError, onImageUrl, vaultPath })
+  const { isDragOver } = useImageDrop({
+    containerRef,
+    onImageImportError,
+    onImageUrl,
+    vaultPath,
+  })
   const lightbox = useImageLightbox({ containerRef })
   const {
     clearCopyTarget,
@@ -1264,13 +1343,16 @@ export function SingleEditorView({ currentContent = '', editor, entries, onNavig
 
   const typeEntryMap = useMemo(() => buildTypeEntryMap(entries), [entries])
   const baseItems = useMemo(() => buildBaseSuggestionItems(entries), [entries])
-  const runEditorAction = useCallback((action: SuggestionAction) => {
+  const runEditorAction = useCallback(
+    (action: SuggestionAction) => {
     runSuggestionActionSafely({
       action,
       container: containerRef.current,
       editor,
     })
-  }, [editor])
+    },
+    [editor],
+  )
   const activatePlainTextPaste = useRichEditorPlainTextPasteTarget({
     containerRef,
     editable,
@@ -1282,17 +1364,26 @@ export function SingleEditorView({ currentContent = '', editor, entries, onNavig
     editor,
     runEditorAction,
   })
-  const handleFocusCapture = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
+  const handleFocusCapture = useCallback(
+    (event: React.FocusEvent<HTMLDivElement>) => {
     activatePlainTextPaste()
     handleCodeBlockCopyFocus(event)
-  }, [activatePlainTextPaste, handleCodeBlockCopyFocus])
-  const handleMouseDownCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    },
+    [activatePlainTextPaste, handleCodeBlockCopyFocus],
+  )
+  const handleMouseDownCapture = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
     activatePlainTextPaste()
     handleWhitespaceMouseSelection(event)
-  }, [activatePlainTextPaste, handleWhitespaceMouseSelection])
-  const handleCopyCapture = useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+    },
+    [activatePlainTextPaste, handleWhitespaceMouseSelection],
+  )
+  const handleCopyCapture = useCallback(
+    (event: React.ClipboardEvent<HTMLDivElement>) => {
     handleEditorCopy(event, editor)
-  }, [editor])
+    },
+    [editor],
+  )
 
   useEffect(() => {
     const container = containerRef.current
@@ -1308,8 +1399,10 @@ export function SingleEditorView({ currentContent = '', editor, entries, onNavig
   const suggestionMenuItems = useSuggestionMenuItems({
     baseItems,
     editor,
+    entries,
     insertWikilink,
     locale,
+    onNavigateWikilink,
     runEditorAction,
     sourceEntry: sourceEntry ?? undefined,
     typeEntryMap,
@@ -1344,31 +1437,31 @@ export function SingleEditorView({ currentContent = '', editor, entries, onNavig
         {(recoveryKey) => (
           <ActivityRecordNavigationProvider value={activityRecordNavigation}>
             <VaultExpressionProvider
-              currentContent={currentContent}
-              entries={entries}
-              locale={locale}
-              sourceEntry={sourceEntry ?? null}
-              vaultPath={vaultPath ?? ''}
+            currentContent={currentContent}
+            entries={entries}
+            locale={locale}
+            sourceEntry={sourceEntry ?? null}
+            vaultPath={vaultPath ?? ''}
+          >
+            <SharedContextBlockNoteView
+              key={recoveryKey}
+              editor={editor}
+              theme={themeMode}
+              onChange={handleEditorChange}
+              editable={editable}
+              emojiPicker={false}
+              formattingToolbar={false}
+              linkToolbar={false}
+              slashMenu={false}
+              sideMenu={false}
             >
-              <SharedContextBlockNoteView
-                key={recoveryKey}
-                editor={editor}
-                theme={themeMode}
-                onChange={handleEditorChange}
-                editable={editable}
-                emojiPicker={false}
-                formattingToolbar={false}
-                linkToolbar={false}
-                slashMenu={false}
-                sideMenu={false}
-              >
-                <EditorInteractionControllers
-                  {...suggestionMenuItems}
-                  locale={locale}
-                  runEditorAction={runEditorAction}
-                  vaultPath={vaultPath}
-                />
-              </SharedContextBlockNoteView>
+              <EditorInteractionControllers
+                {...suggestionMenuItems}
+                locale={locale}
+                runEditorAction={runEditorAction}
+                vaultPath={vaultPath}
+              />
+            </SharedContextBlockNoteView>
             </VaultExpressionProvider>
           </ActivityRecordNavigationProvider>
         )}

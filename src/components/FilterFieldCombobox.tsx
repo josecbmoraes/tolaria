@@ -1,5 +1,15 @@
 import { CaretUpDown } from '@phosphor-icons/react'
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+  type RefObject,
+} from 'react'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { translate, type AppLocale } from '../lib/i18n'
@@ -45,18 +55,21 @@ function displayFieldName(locale: AppLocale, field: FilterFieldName): string {
 }
 
 function buildFieldGroups({ fields, currentValue, locale, query }: BuildFieldGroupsInput): FieldGroup[] {
-  const allFields = currentValue !== '' && !fields.includes(currentValue)
-    ? [currentValue, ...fields]
-    : fields
+  const allFields = currentValue !== '' && !fields.includes(currentValue) ? [currentValue, ...fields] : fields
   const normalized = normalizeFieldQuery(query)
   const matches = (field: FilterFieldName) => normalized === ''
-    || normalizeFieldQuery(field).includes(normalized)
-    || normalizeFieldQuery(displayFieldName(locale, field)).includes(normalized)
+    || field.toLowerCase().includes(normalized)
+    || displayFieldName(locale, field).toLowerCase().includes(normalized)
   const propertyOptions = allFields.filter((field) => !CONTENT_FIELDS.has(field) && matches(field))
   const contentOptions = allFields.filter((field) => CONTENT_FIELDS.has(field) && matches(field))
   const groups: FieldGroup[] = []
 
-  if (propertyOptions.length > 0) groups.push({ key: 'property', label: 'Properties', options: propertyOptions })
+  if (propertyOptions.length > 0)
+    groups.push({
+      key: 'property',
+      label: 'Properties',
+      options: propertyOptions,
+    })
   if (contentOptions.length > 0) groups.push({ key: 'content', label: 'Content', options: contentOptions })
 
   return groups
@@ -135,16 +148,7 @@ function closeOpenCombobox({
   closeCombobox()
 }
 
-function handleFilterFieldKeyDown({
-  event,
-  open,
-  options,
-  highlightedIndex,
-  openCombobox,
-  setHighlightedIndex,
-  selectOption,
-  closeCombobox,
-}: {
+function handleFilterFieldKeyDown(functionOptions: {
   event: KeyboardEvent<HTMLInputElement>
   open: boolean
   options: FilterFieldName[]
@@ -154,15 +158,37 @@ function handleFilterFieldKeyDown({
   selectOption: (value: FilterFieldName) => void
   closeCombobox: () => void
 }) {
+  const { event, open, options, highlightedIndex, openCombobox, setHighlightedIndex, selectOption, closeCombobox } =
+    functionOptions
   switch (event.key) {
     case 'ArrowDown':
-      moveHighlightedOption({ event, open, options, direction: 'next', openCombobox, setHighlightedIndex })
+      moveHighlightedOption({
+        event,
+        open,
+        options,
+        direction: 'next',
+        openCombobox,
+        setHighlightedIndex,
+      })
       return
     case 'ArrowUp':
-      moveHighlightedOption({ event, open, options, direction: 'previous', openCombobox, setHighlightedIndex })
+      moveHighlightedOption({
+        event,
+        open,
+        options,
+        direction: 'previous',
+        openCombobox,
+        setHighlightedIndex,
+      })
       return
     case 'Enter':
-      selectHighlightedOption({ event, open, options, highlightedIndex, selectOption })
+      selectHighlightedOption({
+        event,
+        open,
+        options,
+        highlightedIndex,
+        selectOption,
+      })
       return
     case 'Escape':
       closeOpenCombobox({ event, open, closeCombobox })
@@ -172,17 +198,7 @@ function handleFilterFieldKeyDown({
   }
 }
 
-function FilterFieldInput({
-  inputRef,
-  open,
-  query,
-  value,
-  listboxId,
-  highlightedIndex,
-  onFocus,
-  onChange,
-  onKeyDown,
-}: {
+function FilterFieldInput(options: {
   inputRef: RefObject<HTMLInputElement | null>
   open: boolean
   query: FilterFieldQuery
@@ -193,6 +209,7 @@ function FilterFieldInput({
   onChange: (event: ChangeEvent<HTMLInputElement>) => void
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
 }) {
+  const { inputRef, open, query, value, listboxId, highlightedIndex, onFocus, onChange, onKeyDown } = options
   return (
     <>
       <Input
@@ -218,17 +235,7 @@ function FilterFieldInput({
   )
 }
 
-function FilterFieldPopoverPanel({
-  open,
-  contentWidth,
-  listboxId,
-  fieldGroups,
-  options,
-  highlightedIndex,
-  locale,
-  onHighlight,
-  onSelect,
-}: {
+function FilterFieldPopoverPanel(functionOptions: {
   open: boolean
   contentWidth: number
   listboxId: ListboxId
@@ -239,6 +246,8 @@ function FilterFieldPopoverPanel({
   onHighlight: (index: number) => void
   onSelect: (value: FilterFieldName) => void
 }) {
+  const { open, contentWidth, listboxId, fieldGroups, options, highlightedIndex, locale, onHighlight, onSelect } =
+    functionOptions
   if (!open) return null
 
   return (
@@ -272,6 +281,19 @@ function FilterFieldPopoverPanel({
   )
 }
 
+function currentValueHighlightIndex(fields: FilterFieldName[], value: FilterFieldName, locale: AppLocale) {
+  return initialHighlightIndex({
+    options: flattenGroups(buildFieldGroups({ fields, currentValue: value, locale, query: '' })),
+    currentValue: value,
+  })
+}
+
+function filterFieldOptions(fields: FilterFieldName[], value: FilterFieldName, locale: AppLocale, query: string, hasTyped: boolean) {
+  const effectiveQuery = hasTyped ? query : ''
+  const fieldGroups = buildFieldGroups({ fields, currentValue: value, locale, query: effectiveQuery })
+  return { fieldGroups, options: flattenGroups(fieldGroups) }
+}
+
 export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: FilterFieldComboboxProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
@@ -281,20 +303,12 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listboxId = useId()
-  const effectiveQuery = hasTyped ? query : ''
-  const fieldGroups = useMemo(
-    () => buildFieldGroups({ fields, currentValue: value, locale, query: effectiveQuery }),
-    [fields, value, locale, effectiveQuery],
-  )
-  const options = useMemo(() => flattenGroups(fieldGroups), [fieldGroups])
+  const { fieldGroups, options } = useMemo(() => filterFieldOptions(fields, value, locale, query, hasTyped), [fields, value, locale, query, hasTyped])
 
   const resetToCurrentValue = useCallback(() => {
     setQuery(displayFieldName(locale, value))
     setHasTyped(false)
-    setHighlightedIndex(initialHighlightIndex({
-      options: flattenGroups(buildFieldGroups({ fields, currentValue: value, locale, query: '' })),
-      currentValue: value,
-    }))
+    setHighlightedIndex(currentValueHighlightIndex(fields, value, locale))
   }, [fields, locale, value])
 
   const openCombobox = useCallback(() => {
@@ -308,13 +322,16 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
     resetToCurrentValue()
   }, [resetToCurrentValue])
 
-  const selectOption = useCallback((nextValue: FilterFieldName) => {
-    onChange(nextValue)
-    setQuery(displayFieldName(locale, nextValue))
-    setHasTyped(false)
-    setHighlightedIndex(-1)
-    setOpen(false)
-  }, [locale, onChange])
+  const selectOption = useCallback(
+    (nextValue: FilterFieldName) => {
+      onChange(nextValue)
+      setQuery(displayFieldName(locale, nextValue))
+      setHasTyped(false)
+      setHighlightedIndex(-1)
+      setOpen(false)
+    },
+    [locale, onChange],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -344,7 +361,12 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextQuery = event.target.value
-    const nextGroups = buildFieldGroups({ fields, currentValue: value, locale, query: nextQuery })
+    const nextGroups = buildFieldGroups({
+      fields,
+      currentValue: value,
+      locale,
+      query: nextQuery,
+    })
     const nextOptions = flattenGroups(nextGroups)
     setOpen(true)
     setQuery(nextQuery)
@@ -368,11 +390,7 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
   return (
     <Popover open={open}>
       <PopoverAnchor asChild>
-        <div
-          ref={rootRef}
-          className="relative flex-1 min-w-[160px]"
-          data-testid="filter-field-combobox"
-        >
+        <div ref={rootRef} className="relative flex-1 min-w-[160px]" data-testid="filter-field-combobox">
           <FilterFieldInput
             inputRef={inputRef}
             open={open}

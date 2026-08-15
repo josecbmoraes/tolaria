@@ -14,6 +14,7 @@ export default defineConfig([
     'src-tauri/resources/mcp-server/',
     'src-tauri/target/',
     'src-tauri/gen/',
+    '.worktrees/',
     'tools/',
   ]),
   {
@@ -27,6 +28,10 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+    rules: {
+      'react-hooks/refs': 'error',
+      'react-hooks/set-state-in-effect': 'error',
     },
   },
 ])

@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
 import {
@@ -9,10 +9,13 @@ import {
 
 const CODE_NOTE_RELATIVE_PATH = path.join('note', 'code-block-theme.md')
 const CODE_NOTE_TITLE = 'Code Block Theme'
+const PASTED_CPP_SNIPPET = '#include <iostream>\nint main() { return 0; }'
+const NAVIGATION_SNIPPET = 'alpha\nbravo\ncharlie'
+const NAVIGATION_AFTER_TEXT = 'Navigation boundary after.'
+const LONG_SOURCE_LINE = 'This deliberately long source line must wrap inside the narrow editor. '.repeat(8)
 
 function writeCodeThemeFixtureNote(tempVaultDir: string) {
   const notePath = path.join(tempVaultDir, CODE_NOTE_RELATIVE_PATH)
-  const longSourceLine = 'This deliberately long source line must wrap inside the narrow editor. '.repeat(8)
   fs.mkdirSync(path.dirname(notePath), { recursive: true })
   fs.writeFileSync(notePath, `---
 Is A: Note
@@ -29,7 +32,7 @@ function paint(answer: number) {
 }
 
 console.log(paint(1))
-const wrapped = "${longSourceLine}"
+const wrapped = "${LONG_SOURCE_LINE}"
 console.log(wrapped)
 
 
@@ -38,6 +41,14 @@ console.log(wrapped)
 \`\`\`
 
 Convert this paragraph with the shortcut.
+
+Navigation boundary before.
+
+\`\`\`text
+${NAVIGATION_SNIPPET}
+\`\`\`
+
+${NAVIGATION_AFTER_TEXT}
 `)
 }
 
@@ -88,6 +99,68 @@ async function codeBlockLineNumberGeometry(codeBlock: Locator) {
       postWrapCenterDelta: Math.abs(postWrapMarkerCenter - postWrapSourceCenter),
       sourceLeftOffset: firstSourceRect.left - blockRect.left,
     }
+  })
+}
+
+async function pasteMarkdownCodeBlock(page: Page, source: string) {
+  await page.evaluate(async (markdown) => {
+    await navigator.clipboard.writeText(markdown)
+  }, `\`\`\`\n${source}\n\`\`\``)
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V')
+}
+
+async function placeCaretAtTextOffset(locator: Locator, offset: number) {
+  await locator.evaluate((element, absoluteOffset) => {
+    const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let remaining = absoluteOffset
+    let textNode = walker.nextNode()
+
+    while (textNode) {
+      const length = textNode.textContent?.length ?? 0
+      if (remaining <= length) {
+        const selection = element.ownerDocument.getSelection()
+        const range = element.ownerDocument.createRange()
+        range.setStart(textNode, remaining)
+        range.collapse(true)
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+        return
+      }
+      remaining -= length
+      textNode = walker.nextNode()
+    }
+
+    throw new Error(`Unable to place caret at code offset ${absoluteOffset}`)
+  }, offset)
+}
+
+function readCaretBlockContext() {
+  const selection = document.getSelection() as Selection
+  const anchorNode = selection.anchorNode as Node
+  const anchorElement = anchorNode instanceof Element
+    ? anchorNode
+    : anchorNode.parentElement as Element
+  const block = anchorElement.closest<HTMLElement>('[data-content-type]') as HTMLElement
+  const textElement = block.dataset.contentType === 'codeBlock'
+    ? block.querySelector('pre code') as Element
+    : block
+  return {
+    text: textElement.textContent,
+    type: block.dataset.contentType,
+  }
+}
+
+async function caretBlockContext(page: Page) {
+  return page.evaluate(readCaretBlockContext)
+}
+
+async function caretTextOffset(locator: Locator) {
+  return locator.evaluate((element) => {
+    const selection = element.ownerDocument.getSelection() as Selection
+    const range = element.ownerDocument.createRange()
+    range.selectNodeContents(element)
+    range.setEnd(selection.anchorNode as Node, selection.anchorOffset)
+    return range.toString().length
   })
 }
 
@@ -179,5 +252,96 @@ test.describe('Editor code block theme', () => {
     await createdCode.click()
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
     await expect.poll(() => page.evaluate(() => document.getSelection()?.toString())).toBe(source)
+  })
+
+  test('pasted code blocks keep an editable language selector', async ({ context, page }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await openFixtureVault(page, tempVaultDir)
+    const noteItem = page.locator('[data-testid="note-list-container"]')
+      .getByText(CODE_NOTE_TITLE, { exact: true })
+    await expect(noteItem).toBeVisible({ timeout: 10_000 })
+    await noteItem.click()
+
+    const pasteTarget = page.locator('.bn-editor [data-content-type="paragraph"]')
+      .filter({ hasText: 'Convert this paragraph with the shortcut.' })
+      .last()
+    await expect(pasteTarget).toBeVisible()
+    await pasteTarget.click()
+    await page.keyboard.press('End')
+    await page.keyboard.press('Enter')
+    await pasteMarkdownCodeBlock(page, PASTED_CPP_SNIPPET)
+
+    const pastedCodeBlock = page
+      .locator('.bn-block-content[data-content-type="codeBlock"]')
+      .filter({ hasText: '#include <iostream>' })
+      .last()
+    await expect(pastedCodeBlock).toBeVisible({ timeout: 10_000 })
+
+    const blockId = await pastedCodeBlock.locator('xpath=ancestor::*[@data-id][1]')
+      .getAttribute('data-id')
+    expect(blockId).toBeTruthy()
+    const nativeLanguageSelect = pastedCodeBlock.locator('select').first()
+    const languageSelect = page.locator(
+      `.editor__code-block-language-overlay[data-code-block-id="${blockId}"] [data-slot="select-trigger"]`,
+    )
+    await expect(languageSelect).toBeVisible()
+    await expect(languageSelect).toBeEnabled()
+    await expect(languageSelect).toContainText('Plain Text')
+    await expect.poll(() => nativeLanguageSelect.evaluate((select) => (
+      getComputedStyle(select).visibility
+    ))).toBe('hidden')
+    await expect.poll(() => languageSelect.evaluate((select) => {
+      const style = getComputedStyle(select)
+      return {
+        cursor: style.cursor,
+        height: select.getBoundingClientRect().height,
+      }
+    })).toEqual({
+      cursor: 'pointer',
+      height: 28,
+    })
+
+    await languageSelect.click()
+    await page.getByRole('option', { name: 'C++' }).click()
+    await expect(languageSelect).toContainText('C++')
+    await expect.poll(() => fs.readFileSync(path.join(tempVaultDir, CODE_NOTE_RELATIVE_PATH), 'utf8'), {
+      timeout: 10_000,
+    }).toContain(`\`\`\`cpp\n${PASTED_CPP_SNIPPET}\n\`\`\``)
+  })
+
+  test('moves down within code and exits only at the final logical line', async ({ page }) => {
+    await openFixtureVault(page, tempVaultDir)
+    const noteItem = page.locator('[data-testid="note-list-container"]')
+      .getByText(CODE_NOTE_TITLE, { exact: true })
+    await expect(noteItem).toBeVisible({ timeout: 10_000 })
+    await noteItem.click()
+
+    const code = page.locator('[data-content-type="codeBlock"] pre code')
+      .filter({ hasText: NAVIGATION_SNIPPET })
+    await expect(code).toBeVisible({ timeout: 10_000 })
+
+    await placeCaretAtTextOffset(code, NAVIGATION_SNIPPET.indexOf('bravo'))
+    await page.keyboard.press('ArrowDown')
+    await expect.poll(() => caretBlockContext(page)).toEqual({
+      text: NAVIGATION_SNIPPET,
+      type: 'codeBlock',
+    })
+
+    const wrappedCode = page.locator('[data-content-type="codeBlock"] pre code')
+      .filter({ hasText: LONG_SOURCE_LINE })
+    const wrappedSource = await wrappedCode.textContent()
+    const wrappedStart = wrappedSource.indexOf(LONG_SOURCE_LINE)
+    const wrappedEnd = wrappedStart + LONG_SOURCE_LINE.length
+    await placeCaretAtTextOffset(wrappedCode, wrappedStart + 20)
+    await page.keyboard.press('ArrowDown')
+    await expect.poll(() => caretTextOffset(wrappedCode)).toBeGreaterThan(wrappedStart + 20)
+    await expect.poll(() => caretTextOffset(wrappedCode)).toBeLessThan(wrappedEnd)
+
+    await placeCaretAtTextOffset(code, NAVIGATION_SNIPPET.length)
+    await page.keyboard.press('ArrowDown')
+    await expect.poll(() => caretBlockContext(page)).toEqual({
+      text: NAVIGATION_AFTER_TEXT,
+      type: 'paragraph',
+    })
   })
 })

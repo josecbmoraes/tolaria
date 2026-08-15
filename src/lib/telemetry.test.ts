@@ -263,6 +263,39 @@ describe('initSentry', () => {
     expect(beforeSend(unrecoveredEvent, { originalException: unrecoveredError })).toBe(unrecoveredEvent)
   })
 
+  it('drops recovered BlockNote missing-id events across Sentry event surfaces', () => {
+    const beforeSend = initSentryBeforeSend()
+    const exceptionEvent = {
+      exception: {
+        values: [{
+          type: 'Error',
+          value: "Block doesn't have id",
+        }],
+      },
+    }
+    const messageEvent = {
+      message: "Error: Block doesn't have id",
+    }
+    const hintedEvent = {
+      message: 'Script error.',
+    }
+    const unrelatedEvent = {
+      exception: {
+        values: [{
+          type: 'Error',
+          value: "Block doesn't have identifier",
+        }],
+      },
+    }
+
+    expect(beforeSend(exceptionEvent)).toBeNull()
+    expect(beforeSend(messageEvent)).toBeNull()
+    expect(beforeSend(hintedEvent, {
+      originalException: new Error("Block doesn't have id"),
+    })).toBeNull()
+    expect(beforeSend(unrelatedEvent)).toBe(unrelatedEvent)
+  })
+
   it('drops recovered WebKit DOM NotFoundError events before sending them to Sentry', () => {
     const beforeSend = initSentryBeforeSend()
     const webKitDomEvent = {
@@ -303,6 +336,39 @@ describe('initSentry', () => {
     hintedError.name = 'NotFoundError'
     expect(beforeSend(hintedEvent, { originalException: hintedError })).toBeNull()
     expect(beforeSend(unrelatedNotFoundEvent)).toBe(unrelatedNotFoundEvent)
+  })
+
+  it('drops recovered stale ProseMirror selection events before sending them to Sentry', () => {
+    const beforeSend = initSentryBeforeSend()
+    const selectionEvent = {
+      exception: {
+        values: [{
+          type: 'RangeError',
+          value: 'Selection points outside of document',
+        }],
+      },
+    }
+    const messageOnlyEvent = {
+      message: 'RangeError: Selection points outside of document',
+    }
+    const hintedEvent = {
+      message: 'Script error.',
+    }
+    const unrelatedRangeEvent = {
+      exception: {
+        values: [{
+          type: 'RangeError',
+          value: 'Selection size exceeds document limit',
+        }],
+      },
+    }
+
+    expect(beforeSend(selectionEvent)).toBeNull()
+    expect(beforeSend(messageOnlyEvent)).toBeNull()
+    expect(beforeSend(hintedEvent, {
+      originalException: new RangeError('Selection points outside of document'),
+    })).toBeNull()
+    expect(beforeSend(unrelatedRangeEvent)).toBe(unrelatedRangeEvent)
   })
 
   it('drops browser ResizeObserver loop notifications before sending them to Sentry', () => {

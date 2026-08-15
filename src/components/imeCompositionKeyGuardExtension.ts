@@ -1,16 +1,11 @@
 import { createExtension } from '@blocknote/core'
-
-interface ComposingEditorView {
-  composing?: boolean
-}
+import {
+  activeRichEditorView,
+  isComposingKeyboardEvent,
+  type ComposingEditorView,
+} from './richEditorKeyboard'
 
 const COMPOSITION_SETTLE_WINDOW_MS = 500
-
-function isComposingKeyEvent(event: KeyboardEvent, view?: ComposingEditorView | null): boolean {
-  if (event.isComposing) return true
-  if (event.keyCode === 229) return true
-  return Boolean(view?.composing)
-}
 
 function isEnterKey(event: KeyboardEvent): boolean {
   return event.key === 'Enter'
@@ -36,8 +31,10 @@ function isParagraphInput(event: InputEvent): boolean {
 export function shouldStopComposingEditorShortcutKey(
   event: KeyboardEvent,
   view?: ComposingEditorView | null,
+  compositionActive = false,
 ): boolean {
-  return isCompositionEditorShortcutKey(event) && isComposingKeyEvent(event, view)
+  return isCompositionEditorShortcutKey(event)
+    && (compositionActive || isComposingKeyboardEvent(event, view))
 }
 
 export function shouldStopComposingParagraphInput(
@@ -46,7 +43,7 @@ export function shouldStopComposingParagraphInput(
   composingEnterAt: number | null = null,
 ): boolean {
   if (!isParagraphInput(event)) return false
-  if (event.isComposing || Boolean(view?.composing)) return true
+  if (event.isComposing || view?.composing === true) return true
   if (composingEnterAt === null) return false
 
   const elapsed = event.timeStamp - composingEnterAt
@@ -54,11 +51,12 @@ export function shouldStopComposingParagraphInput(
 }
 
 export const createImeCompositionKeyGuardExtension = createExtension(({ editor }) => {
-  const readView = () => editor._tiptapEditor?.view ?? editor.prosemirrorView
+  const readView = () => activeRichEditorView(editor)
+  let compositionActive = false
   let composingEnterAt: number | null = null
 
   const handleKeyDown = (event: KeyboardEvent) => {
-    if (!shouldStopComposingEditorShortcutKey(event, readView())) {
+    if (!shouldStopComposingEditorShortcutKey(event, readView(), compositionActive)) {
       composingEnterAt = null
       return
     }
@@ -67,7 +65,12 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
     event.stopImmediatePropagation()
   }
 
+  const handleCompositionStart = () => {
+    compositionActive = true
+  }
+
   const handleCompositionEnd = (event: CompositionEvent) => {
+    compositionActive = false
     if (composingEnterAt !== null) composingEnterAt = event.timeStamp
   }
 
@@ -87,6 +90,10 @@ export const createImeCompositionKeyGuardExtension = createExtension(({ editor }
     key: 'imeCompositionKeyGuard',
     mount: ({ dom, signal }) => {
       dom.addEventListener('keydown', handleKeyDown, {
+        capture: true,
+        signal,
+      })
+      dom.addEventListener('compositionstart', handleCompositionStart, {
         capture: true,
         signal,
       })

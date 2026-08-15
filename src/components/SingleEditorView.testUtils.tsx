@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import type { ComponentType, ReactNode } from 'react'
-import { expect, vi } from 'vitest'
+import { vi } from 'vitest'
 import type { VaultEntry } from '../types'
 import { SingleEditorViewActivityProbe } from './SingleEditorViewActivityProbe'
 import { TooltipProvider } from './ui/tooltip'
@@ -323,8 +323,8 @@ export function renderEditorHarness(editor = createEditor(), options: { vaultPat
   )
 
   const container = screen.getByTestId('blocknote-view').closest('.editor__blocknote-container')
-  expect(container).toBeTruthy()
-  return { container: container!, editor }
+  if (!container) throw new Error('Expected the editor container to render')
+  return { container, editor }
 }
 
 export function renderEditorHarnessInScrollArea(editor = createEditor()) {
@@ -343,8 +343,8 @@ export function renderEditorHarnessInScrollArea(editor = createEditor()) {
 
   const scrollArea = screen.getByTestId('editor-scroll-area')
   const container = screen.getByTestId('blocknote-view').closest('.editor__blocknote-container')
-  expect(container).toBeTruthy()
-  return { container: container!, editor, scrollArea }
+  if (!container) throw new Error('Expected the editor container to render')
+  return { container, editor, scrollArea }
 }
 
 export function createCodeBlockFixture(text: string) {

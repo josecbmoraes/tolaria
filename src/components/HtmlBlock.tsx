@@ -83,8 +83,12 @@ function htmlBlockProps(value: unknown): HtmlBlockProps | null {
   }
 }
 
+function isLiveHtmlBlockRecord(value: unknown): value is Record<string, unknown> & { id: string } {
+  return isRecord(value) && value.type === BLOCK_TYPE && typeof value.id === 'string'
+}
+
 function liveHtmlBlock(value: unknown): LiveHtmlBlock | null {
-  if (!isRecord(value) || value.type !== BLOCK_TYPE || typeof value.id !== 'string') return null
+  if (!isLiveHtmlBlockRecord(value)) return null
 
   const props = htmlBlockProps(value.props)
   return props ? { id: value.id, props } : null
@@ -180,7 +184,7 @@ export function HtmlBlock({ block, editor }: HtmlBlockViewProps) {
     htmlBlockPreview(Reflect.get(resolvedMarkup, 'html'), { scripts: currentScripts })
   ), [currentScripts, resolvedMarkup])
   const sanitizedMarkup = Reflect.get(preview, 'sanitizedHtml') as string
-  const { srcDoc } = preview
+  const { src, srcDoc } = preview
   const [resizingHeight, setResizingHeight] = useState<string | null>(null)
   const displayHeight = resizingHeight ?? currentHeight
   const blockedMarkup = currentMarkup.trim().length > 0 && sanitizedMarkup.trim().length === 0
@@ -335,7 +339,8 @@ export function HtmlBlock({ block, editor }: HtmlBlockViewProps) {
           referrerPolicy="no-referrer"
           ref={frameRef}
           sandbox={htmlBlockSandboxAttribute(currentScripts)}
-          srcDoc={srcDoc}
+          src={src}
+          srcDoc={src ? undefined : srcDoc}
           tabIndex={-1}
           title={t('editor.htmlBlock.previewTitle')}
         />
