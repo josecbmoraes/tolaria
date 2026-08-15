@@ -48,12 +48,19 @@ describe('CreateViewDialog', () => {
       />,
     )
 
-    fireEvent.focus(screen.getByTestId('filter-field-combobox-input'))
+    const fieldInput = screen.getByTestId('filter-field-combobox-input')
+    const nextFollowUpLabel = translate('pt-BR', 'noteList.sort.nextFollowUp')
+
+    expect(fieldInput).toHaveValue(nextFollowUpLabel)
+
+    fireEvent.focus(fieldInput)
+    expect(fieldInput).toHaveValue(nextFollowUpLabel)
     expect(screen.getByTestId('filter-field-option-next-follow-up')).toHaveTextContent(
-      translate('pt-BR', 'noteList.sort.nextFollowUp'),
+      nextFollowUpLabel,
     )
 
     fireEvent.click(screen.getByTestId('filter-field-option-next-follow-up'))
+    expect(fieldInput).toHaveValue(nextFollowUpLabel)
     fireEvent.change(screen.getByRole('textbox', { name: 'Nome' }), { target: { value: 'Follow-ups' } })
     fireEvent.click(screen.getByText('Criar'))
 

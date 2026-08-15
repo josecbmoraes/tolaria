@@ -2,7 +2,7 @@ import { CaretUpDown } from '@phosphor-icons/react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type RefObject } from 'react'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
-import type { AppLocale } from '../lib/i18n'
+import { translate, type AppLocale } from '../lib/i18n'
 import { FilterFieldOptionsList } from './filter-builder/FilterFieldOptionsList'
 
 const CONTENT_FIELDS = new Set(['body'])
@@ -37,6 +37,10 @@ interface HighlightIndexInput {
 
 function normalizeFieldQuery(query: FilterFieldQuery): FilterFieldQuery {
   return query.trim().toLowerCase()
+}
+
+function displayFieldName(locale: AppLocale, field: FilterFieldName): string {
+  return field === 'next follow-up' ? translate(locale, 'noteList.sort.nextFollowUp') : field
 }
 
 function buildFieldGroups({ fields, currentValue, query }: BuildFieldGroupsInput): FieldGroup[] {
@@ -282,13 +286,13 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
   const options = useMemo(() => flattenGroups(fieldGroups), [fieldGroups])
 
   const resetToCurrentValue = useCallback(() => {
-    setQuery(value)
+    setQuery(displayFieldName(locale, value))
     setHasTyped(false)
     setHighlightedIndex(initialHighlightIndex({
       options: flattenGroups(buildFieldGroups({ fields, currentValue: value, query: '' })),
       currentValue: value,
     }))
-  }, [fields, value])
+  }, [fields, locale, value])
 
   const openCombobox = useCallback(() => {
     resetToCurrentValue()
@@ -303,11 +307,11 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
 
   const selectOption = useCallback((nextValue: FilterFieldName) => {
     onChange(nextValue)
-    setQuery(nextValue)
+    setQuery(displayFieldName(locale, nextValue))
     setHasTyped(false)
     setHighlightedIndex(-1)
     setOpen(false)
-  }, [onChange])
+  }, [locale, onChange])
 
   useEffect(() => {
     if (!open) return
@@ -370,7 +374,7 @@ export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: 
             inputRef={inputRef}
             open={open}
             query={query}
-            value={value}
+            value={displayFieldName(locale, value)}
             listboxId={listboxId}
             highlightedIndex={highlightedIndex}
             onFocus={openCombobox}
