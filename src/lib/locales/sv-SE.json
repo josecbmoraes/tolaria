@@ -617,6 +617,7 @@
   "noteList.sort.created": "Skapad",
   "noteList.sort.title": "Titel",
   "noteList.sort.status": "Status",
+  "noteList.sort.nextFollowUp": "Next follow-up",
   "noteList.sort.by": "Sortera efter {label}",
   "noteList.sort.menu": "Sortera {label}",
   "noteList.sort.ascending": "Stigande",

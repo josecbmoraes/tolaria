@@ -617,6 +617,7 @@
   "noteList.sort.created": "Vytvorené",
   "noteList.sort.title": "Názov",
   "noteList.sort.status": "Stav",
+  "noteList.sort.nextFollowUp": "Next follow-up",
   "noteList.sort.by": "Zoradiť podľa {label}",
   "noteList.sort.menu": "Zoradiť {label}",
   "noteList.sort.ascending": "Vzostupne",

@@ -617,6 +617,7 @@
   "noteList.sort.created": "Створено",
   "noteList.sort.title": "Заголовок",
   "noteList.sort.status": "Статус",
+  "noteList.sort.nextFollowUp": "Next follow-up",
   "noteList.sort.by": "Сортувати за: {label}",
   "noteList.sort.menu": "Сортувати: {label}",
   "noteList.sort.ascending": "За зростанням",

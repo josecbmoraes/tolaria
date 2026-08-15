@@ -617,6 +617,7 @@
   "noteList.sort.created": "已创建",
   "noteList.sort.title": "标题",
   "noteList.sort.status": "状态",
+  "noteList.sort.nextFollowUp": "Next follow-up",
   "noteList.sort.by": "按{label}排序",
   "noteList.sort.menu": "排序{label}",
   "noteList.sort.ascending": "升序",

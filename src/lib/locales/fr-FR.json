@@ -617,6 +617,7 @@
   "noteList.sort.created": "Créé",
   "noteList.sort.title": "Titre",
   "noteList.sort.status": "Statut",
+  "noteList.sort.nextFollowUp": "Next follow-up",
   "noteList.sort.by": "Trier par {label}",
   "noteList.sort.menu": "Trier par {label}",
   "noteList.sort.ascending": "Croissant",
