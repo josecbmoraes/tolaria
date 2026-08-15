@@ -399,7 +399,7 @@ pub(super) fn extract_next_follow_up_at(content: &str) -> Option<String> {
         if let Some((timestamp, source)) = read_follow_up_at(&lines[index + 1..closing_index]) {
             if earliest
                 .as_ref()
-                .is_none_or(|(current, _)| timestamp < *current)
+                .map_or(true, |(current, _)| timestamp < *current)
             {
                 earliest = Some((timestamp, source));
             }
