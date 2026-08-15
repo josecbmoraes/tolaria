@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import type { AppLocale } from '../lib/i18n'
 import type { FilterCondition, FilterOp, FilterGroup, FilterNode } from '../types'
 import { compileSafeUserRegex } from '../utils/safeRegex'
 import { FilterFieldCombobox } from './FilterFieldCombobox'
@@ -138,9 +139,10 @@ function TextValueInput({ value, onChange, regexEnabled, regexSupported, invalid
   )
 }
 
-function FilterRow({ condition, fields, onUpdate, onRemove }: {
+function FilterRow({ condition, fields, locale, onUpdate, onRemove }: {
   condition: FilterCondition
   fields: string[]
+  locale: AppLocale
   onUpdate: (c: FilterCondition) => void
   onRemove: () => void
 }) {
@@ -153,6 +155,7 @@ function FilterRow({ condition, fields, onUpdate, onRemove }: {
       <FilterFieldCombobox
         value={condition.field}
         fields={fields}
+        locale={locale}
         onChange={(v) => onUpdate({ ...condition, field: v })}
       />
       <OperatorSelect
@@ -187,10 +190,11 @@ function FilterRow({ condition, fields, onUpdate, onRemove }: {
   )
 }
 
-function FilterGroupView({ group, fields, depth, onChange, onRemove }: {
+function FilterGroupView({ group, fields, depth, locale, onChange, onRemove }: {
   group: FilterGroup
   fields: string[]
   depth: number
+  locale: AppLocale
   onChange: (g: FilterGroup) => void
   onRemove?: () => void
 }) {
@@ -258,6 +262,7 @@ function FilterGroupView({ group, fields, depth, onChange, onRemove }: {
               group={child}
               fields={fields}
               depth={depth + 1}
+              locale={locale}
               onChange={(g) => updateChild(i, g)}
               onRemove={() => removeChild(i)}
             />
@@ -266,6 +271,7 @@ function FilterGroupView({ group, fields, depth, onChange, onRemove }: {
               key={key}
               condition={child}
               fields={fields}
+              locale={locale}
               onUpdate={(c) => updateChild(i, c)}
               onRemove={() => removeChild(i)}
             />
@@ -288,15 +294,17 @@ export interface FilterBuilderProps {
   group: FilterGroup
   onChange: (group: FilterGroup) => void
   availableFields: string[]
+  locale?: AppLocale
 }
 
-export function FilterBuilder({ group, onChange, availableFields }: FilterBuilderProps) {
+export function FilterBuilder({ group, onChange, availableFields, locale = 'en' }: FilterBuilderProps) {
   const fields = availableFields.length > 0 ? availableFields : ['type']
   return (
     <FilterGroupView
       group={group}
       fields={fields}
       depth={0}
+      locale={locale}
       onChange={onChange}
     />
   )

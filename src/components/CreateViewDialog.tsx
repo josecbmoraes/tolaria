@@ -112,6 +112,7 @@ function CreateViewDialogForm({
           group={filters}
           onChange={setFilters}
           availableFields={availableFields}
+          locale={locale}
         />
       </div>
       <DialogFooter>

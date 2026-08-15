@@ -746,8 +746,8 @@ Defined in `src/utils/activityDocument.ts`, `src/utils/activityDocumentMutations
 - `lineRecordMarkdown` converts only closed records inside that section into read-only `lineRecordBlock` nodes. Unchanged nodes serialize their stored `source` byte for byte; fences outside Activity remain ordinary code blocks.
 - `ActivityTimelineView` derives newest-first presentation without moving records in Markdown. Create appends at the physical section end, edit replaces the same source span, and delete removes only the selected record and its owned separator whitespace.
 - `ActivityRecordNavigationContext` is navigation-only: supported rich blocks open their matching structured edit dialog, while malformed and unsupported blocks open RAW. The rich editor exposes no record slash command, drag handle, direct edit, or removal control.
-- Timeline mutations use the existing `onContentChange` and save coordinator. No parallel persistence model, `VaultEntry` field, or Rust scanner state is introduced.
-- The vault scanner derives `VaultEntry.nextFollowUpAt` from the earliest valid `follow_up_at` in closed Activity `line-record` fences; it does not persist a second follow-up model. Completing a follow-up removes that metadata key, so the derived value becomes absent while the completed Activity record remains visible in Timeline.
+- Timeline mutations use the existing `onContentChange` and save coordinator. Markdown remains the only source of truth: no parallel persisted follow-up model or frontmatter field is introduced.
+- The vault scanner derives `VaultEntry.nextFollowUpAt` from the earliest valid `follow_up_at` in the first Activity section's exact canonical opener (three backticks immediately followed by `line-record`); it does not persist a second follow-up model. Completing a follow-up removes that metadata key, so the derived value becomes absent while the completed Activity record remains visible in Timeline.
 
 ### Formatting Surface Policy
 

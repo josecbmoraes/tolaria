@@ -2,6 +2,7 @@ import { CaretUpDown } from '@phosphor-icons/react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type RefObject } from 'react'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import type { AppLocale } from '../lib/i18n'
 import { FilterFieldOptionsList } from './filter-builder/FilterFieldOptionsList'
 
 const CONTENT_FIELDS = new Set(['body'])
@@ -13,6 +14,7 @@ type ListboxId = string
 interface FilterFieldComboboxProps {
   value: FilterFieldName
   fields: FilterFieldName[]
+  locale?: AppLocale
   onChange: (value: FilterFieldName) => void
 }
 
@@ -216,6 +218,7 @@ function FilterFieldPopoverPanel({
   fieldGroups,
   options,
   highlightedIndex,
+  locale,
   onHighlight,
   onSelect,
 }: {
@@ -225,6 +228,7 @@ function FilterFieldPopoverPanel({
   fieldGroups: FieldGroup[]
   options: FilterFieldName[]
   highlightedIndex: number
+  locale: AppLocale
   onHighlight: (index: number) => void
   onSelect: (value: FilterFieldName) => void
 }) {
@@ -251,6 +255,7 @@ function FilterFieldPopoverPanel({
             fieldGroups={fieldGroups}
             options={options}
             highlightedIndex={highlightedIndex}
+            locale={locale}
             onHighlight={onHighlight}
             onSelect={onSelect}
           />
@@ -260,7 +265,7 @@ function FilterFieldPopoverPanel({
   )
 }
 
-export function FilterFieldCombobox({ value, fields, onChange }: FilterFieldComboboxProps) {
+export function FilterFieldCombobox({ value, fields, locale = 'en', onChange }: FilterFieldComboboxProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
   const [hasTyped, setHasTyped] = useState(false)
@@ -381,6 +386,7 @@ export function FilterFieldCombobox({ value, fields, onChange }: FilterFieldComb
         fieldGroups={fieldGroups}
         options={options}
         highlightedIndex={highlightedIndex}
+        locale={locale}
         onHighlight={setHighlightedIndex}
         onSelect={selectOption}
       />

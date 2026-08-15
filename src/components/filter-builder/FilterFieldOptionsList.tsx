@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { translate, type AppLocale } from '../../lib/i18n'
 
 interface FieldGroup {
   key: 'property' | 'content'
@@ -15,6 +16,7 @@ export function FilterFieldOptionsList({
   fieldGroups,
   options,
   highlightedIndex,
+  locale,
   onHighlight,
   onSelect,
 }: {
@@ -22,6 +24,7 @@ export function FilterFieldOptionsList({
   fieldGroups: FieldGroup[]
   options: string[]
   highlightedIndex: number
+  locale: AppLocale
   onHighlight: (index: number) => void
   onSelect: (field: string) => void
 }) {
@@ -58,7 +61,7 @@ export function FilterFieldOptionsList({
                 onClick={() => onSelect(field)}
                 data-testid={optionTestId(field)}
               >
-                <span className="truncate">{field}</span>
+                <span className="truncate">{field === 'next follow-up' ? translate(locale, 'noteList.sort.nextFollowUp') : field}</span>
               </button>
             )
           })}

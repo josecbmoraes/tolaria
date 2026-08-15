@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { CreateViewDialog } from './CreateViewDialog'
 import type { ViewDefinition } from '../types'
+import { translate } from '../lib/i18n'
 
 const DIALOG_TEST_TIMEOUT_MS = 10_000
 
@@ -34,6 +35,33 @@ describe('CreateViewDialog', () => {
     render(<CreateViewDialog {...defaultProps} editingView={makeEditingView()} />)
     expect(screen.getByText('Edit View')).toBeInTheDocument()
     expect(screen.getByText('Save')).toBeInTheDocument()
+  })
+
+  it('localizes next follow-up in the field picker while preserving its filter value', async () => {
+    const onCreate = vi.fn()
+    render(
+      <CreateViewDialog
+        {...defaultProps}
+        locale="pt-BR"
+        onCreate={onCreate}
+        availableFields={['next follow-up']}
+      />,
+    )
+
+    fireEvent.focus(screen.getByTestId('filter-field-combobox-input'))
+    expect(screen.getByTestId('filter-field-option-next-follow-up')).toHaveTextContent(
+      translate('pt-BR', 'noteList.sort.nextFollowUp'),
+    )
+
+    fireEvent.click(screen.getByTestId('filter-field-option-next-follow-up'))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nome' }), { target: { value: 'Follow-ups' } })
+    fireEvent.click(screen.getByText('Criar'))
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
+        filters: { all: [{ field: 'next follow-up', op: 'equals', value: '' }] },
+      }))
+    })
   })
 
   it('pre-populates name field in edit mode', () => {
