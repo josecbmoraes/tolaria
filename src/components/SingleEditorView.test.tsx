@@ -134,7 +134,7 @@ describe('SingleEditorView', () => {
 
     await waitFor(() => {
       expect(activityHeading).toHaveAttribute('data-tolaria-hidden-activity')
-      expect(activityRecord).toHaveAttribute('data-tolaria-hidden-activity')
+      expect(activityRecord).not.toHaveAttribute('data-tolaria-hidden-activity')
       expect(nextHeading).not.toHaveAttribute('data-tolaria-hidden-activity')
     })
 

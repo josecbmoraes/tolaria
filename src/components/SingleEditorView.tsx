@@ -1265,14 +1265,12 @@ function refreshCodeBlockSyntaxHighlighting(editor: ReturnType<typeof useCreateB
 }
 
 function syncActivitySectionVisibility(container: HTMLElement) {
-  let hidingActivity = false
   for (const block of container.querySelectorAll<HTMLElement>('.bn-block')) {
     const heading = block.querySelector<HTMLElement>('[data-content-type="heading"]')
     const isActivityHeading = heading?.dataset.level === '2' && heading.textContent?.trim() === 'Activity'
-    if (heading?.dataset.level === '2') hidingActivity = isActivityHeading
 
-    if (block.hasAttribute('data-tolaria-hidden-activity') !== hidingActivity) {
-      block.toggleAttribute('data-tolaria-hidden-activity', hidingActivity)
+    if (block.hasAttribute('data-tolaria-hidden-activity') !== isActivityHeading) {
+      block.toggleAttribute('data-tolaria-hidden-activity', isActivityHeading)
     }
   }
 }
