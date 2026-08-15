@@ -8,6 +8,7 @@ import { deriveEditorContentState } from './editorContentState'
 import type { RawEditorFindRequest } from '../RawEditorFindBar'
 import type { ImageImportError } from '../../hooks/useImageDrop'
 import type { ActivitySurfaceMode } from '../activity/useActivityMode'
+import { isHtmlFileEntry } from '../../utils/filePreview'
 
 export interface Tab {
   entry: VaultEntry
@@ -100,9 +101,9 @@ export function useEditorContentModel(props: EditorContentProps) {
     rawMode,
     activeStatus: props.activeStatus,
   }), [activeTab, entries, props.activeStatus, rawMode])
-  const activitySupported = Boolean(activeTab)
+  const activitySupported = activeTab !== null
     && !isSheet
-    && !isHtmlPreview
+    && !isHtmlFileEntry(activeTab.entry)
     && !isNonMarkdownText
     && !isDeletedPreview
   const showActivityToggle = props.showActivityToggle

@@ -28,15 +28,28 @@ function openExplicitWebUrl(event: MouseEvent<HTMLAnchorElement>, href: string) 
 }
 
 function renderSoftLineBreaks(children: ReactNode): ReactNode {
-  return Children.toArray(children).flatMap((child, childIndex) => {
-    if (typeof child !== 'string') return [child]
+  const renderedChildren: ReactNode[] = []
+  let textOffset = 0
 
-    return child.split(/\r?\n/u).flatMap((line, lineIndex) => (
-      lineIndex === 0
-        ? [line]
-        : [<br key={`soft-break-${childIndex}-${lineIndex}`} />, line]
-    ))
-  })
+  for (const child of Children.toArray(children)) {
+    if (typeof child !== 'string') {
+      renderedChildren.push(child)
+      continue
+    }
+
+    let firstLine = true
+    for (const line of child.split(/\r?\n/u)) {
+      if (!firstLine) {
+        renderedChildren.push(<br key={`soft-break-${textOffset}`} />)
+        textOffset += 1
+      }
+      renderedChildren.push(line)
+      textOffset += line.length
+      firstLine = false
+    }
+  }
+
+  return renderedChildren
 }
 
 interface MarkdownContentProps {

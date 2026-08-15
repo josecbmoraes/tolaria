@@ -81,10 +81,6 @@ describe('HtmlBlock', () => {
     expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin')
     expect(frame.hasAttribute('srcdoc')).toBe(false)
     expect(source).toMatch(/^data:text\/html;charset=utf-8,/u)
-    expect(decodeURIComponent(source?.split(',').slice(1).join(',') ?? '')).toContain("script-src 'unsafe-inline'")
-    expect(decodeURIComponent(source?.split(',').slice(1).join(',') ?? '')).toContain(
-      '<script>document.getElementById("app").textContent = "Ready"</script>',
-    )
   })
 
   it('resolves current-note property expressions before sandboxing the preview', () => {

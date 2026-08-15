@@ -642,8 +642,6 @@ export function EditorContentLayout(model: EditorContentModel) {
             rawModeContent={rawModeContent}
             onRawContentChange={onRawContentChange}
             onImageImportError={onImageImportError}
-            onEditActivityRecord={onEditActivityRecord}
-            onOpenActivityRaw={onOpenActivityRaw}
             onSave={onSave}
             rawLatestContentRef={rawLatestContentRef}
             vaultPath={vaultPath}
@@ -666,6 +664,8 @@ export function EditorContentLayout(model: EditorContentModel) {
             isDeletedPreview={isDeletedPreview}
             isSheet={isSheet}
             locale={locale}
+            onEditActivityRecord={onEditActivityRecord}
+            onOpenActivityRaw={onOpenActivityRaw}
           />
         </>
       )}
