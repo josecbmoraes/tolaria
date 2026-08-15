@@ -19,6 +19,9 @@ const BUILT_IN_FIELD_READERS = new Map<string, BuiltInFieldReader>([
   ['archived', (entry) => scalarField(entry.archived)],
   ['favorite', (entry) => scalarField(entry.favorite)],
   ['body', (entry) => scalarField(entry.snippet)],
+  ['next follow-up', (entry) => scalarField(entry.nextFollowUpAt ?? null)],
+  ['next_follow_up', (entry) => scalarField(entry.nextFollowUpAt ?? null)],
+  ['nextfollowup', (entry) => scalarField(entry.nextFollowUpAt ?? null)],
 ])
 
 /** Evaluate a view's filters against a list of entries, returning only matches. */

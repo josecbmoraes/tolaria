@@ -151,6 +151,17 @@ describe('noteListHelpers extra coverage', () => {
     expect([...entriesWithMissingTitle].sort(getSortComparator('title', 'asc')).map((entry) => entry.title)).toEqual([null, 'Beta'])
   })
 
+  it('sorts next follow-ups chronologically and keeps absent dates last', () => {
+    const entries = [
+      makeEntry({ title: 'Later', nextFollowUpAt: '2026-08-22T09:00:00-03:00' }),
+      makeEntry({ title: 'No follow-up', nextFollowUpAt: null }),
+      makeEntry({ title: 'Earlier', nextFollowUpAt: '2026-08-20T09:00:00-03:00' }),
+    ]
+
+    expect([...entries].sort(getSortComparator('next_follow_up', 'asc')).map((entry) => entry.title)).toEqual(['Earlier', 'Later', 'No follow-up'])
+    expect([...entries].sort(getSortComparator('next_follow_up', 'desc')).map((entry) => entry.title)).toEqual(['Later', 'Earlier', 'No follow-up'])
+  })
+
   it('serializes, parses, loads, and saves sort preferences with migration support', () => {
     const serialized = serializeSortConfig({ option: 'property:Priority', direction: 'desc' })
     expect(serialized).toBe('property:Priority:desc')

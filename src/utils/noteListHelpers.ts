@@ -122,7 +122,7 @@ export function sortByModified(a: VaultEntry, b: VaultEntry): number {
   return (getDisplayDate(b) ?? 0) - (getDisplayDate(a) ?? 0)
 }
 
-export type SortOption = 'modified' | 'created' | 'title' | 'status' | `property:${string}`
+export type SortOption = 'modified' | 'created' | 'title' | 'status' | 'next_follow_up' | `property:${string}`
 export type SortDirection = 'asc' | 'desc'
 
 export interface SortConfig {
@@ -130,11 +130,12 @@ export interface SortConfig {
   direction: SortDirection
 }
 
-export const DEFAULT_SORT_OPTIONS: SortOption[] = ['modified', 'created', 'title', 'status']
+export const DEFAULT_SORT_OPTIONS: SortOption[] = ['modified', 'created', 'title', 'status', 'next_follow_up']
 const BUILT_IN_SORT_OPTIONS = new Set<string>(DEFAULT_SORT_OPTIONS)
 
 export function getDefaultDirection(option: SortOption): SortDirection {
   if (option === 'modified' || option === 'created') return 'desc'
+  if (option === 'next_follow_up') return 'asc'
   return 'asc'
 }
 
@@ -143,6 +144,7 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'created', label: 'Created' },
   { value: 'title', label: 'Title' },
   { value: 'status', label: 'Status' },
+  { value: 'next_follow_up', label: 'Next follow-up' },
 ]
 
 export function getSortOptionLabel(option: SortOption): string {
@@ -200,6 +202,13 @@ function makePropertyComparator(key: string, flip: number): (a: VaultEntry, b: V
   }
 }
 
+function followUpTimestamp(entry: VaultEntry): number | null {
+  const value = entry.nextFollowUpAt
+  if (!value) return null
+  const timestamp = Date.parse(value)
+  return Number.isNaN(timestamp) ? null : timestamp
+}
+
 function makeBuiltinComparator(option: string, flip: number): (a: VaultEntry, b: VaultEntry) => number {
   if (option === 'title') return (a, b) => flip * stringField(a.title).localeCompare(stringField(b.title))
   if (option === 'created') return (a, b) => flip * ((a.createdAt ?? a.modifiedAt ?? 0) - (b.createdAt ?? b.modifiedAt ?? 0))
@@ -208,6 +217,14 @@ function makeBuiltinComparator(option: string, flip: number): (a: VaultEntry, b:
     const sb = STATUS_ORDER_LOOKUP.get(b.status ?? '') ?? 999
     if (sa !== sb) return flip * (sa - sb)
     return (getDisplayDate(b) ?? 0) - (getDisplayDate(a) ?? 0)
+  }
+  if (option === 'next_follow_up') return (a, b) => {
+    const aTimestamp = followUpTimestamp(a)
+    const bTimestamp = followUpTimestamp(b)
+    if (aTimestamp == null && bTimestamp == null) return 0
+    if (aTimestamp == null) return 1
+    if (bTimestamp == null) return -1
+    return flip * (aTimestamp - bTimestamp)
   }
   return (a, b) => flip * ((getDisplayDate(a) ?? 0) - (getDisplayDate(b) ?? 0))
 }

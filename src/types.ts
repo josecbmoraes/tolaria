@@ -63,6 +63,8 @@ export interface VaultEntry {
   properties: Record<string, VaultPropertyValue>
   /** Whether the note body has an H1 heading on the first non-empty line. */
   hasH1: boolean
+  /** Earliest pending activity follow-up timestamp, derived while indexing the note. */
+  nextFollowUpAt?: string | null
   /** File kind: "markdown", "text", or "binary". Determines editor behavior.
    *  Defaults to "markdown" when absent (for backwards compatibility). */
   fileKind?: 'markdown' | 'text' | 'binary'

@@ -104,6 +104,18 @@ describe('evaluateView', () => {
     expectFilterTitles({ field: 'status', op: 'is_not_empty' }, entries, ['Has'], 'Has Status')
   })
 
+  it('filters pending next follow-ups through built-in aliases', () => {
+    const entries = [
+      makeEntry({ title: 'Pending', nextFollowUpAt: '2026-08-22T09:00:00-03:00' }),
+      makeEntry({ title: 'Complete', nextFollowUpAt: null }),
+      makeEntry({ title: 'No activity' }),
+    ]
+
+    expectFilterTitles({ field: 'next follow-up', op: 'is_not_empty' }, entries, ['Pending'], 'Pending follow-ups')
+    expectFilterTitles({ field: 'next_follow_up', op: 'is_not_empty' }, entries, ['Pending'], 'Pending follow-ups underscore')
+    expectFilterTitles({ field: 'nextfollowup', op: 'is_not_empty' }, entries, ['Pending'], 'Pending follow-ups compact')
+  })
+
   it('excludes archived entries', () => {
     const entries = [
       makeEntry({ isA: 'Note', title: 'Active' }),
@@ -212,6 +224,16 @@ describe('evaluateView', () => {
       makeEntry({ title: 'NoDate', properties: {} }),
     ]
     expectFilterTitles({ field: 'Date', op: 'before', value: '2024-06-01' }, entries, ['Early'], 'Before')
+  })
+
+  it('filters overdue next follow-ups before a date', () => {
+    const entries = [
+      makeEntry({ title: 'Overdue', nextFollowUpAt: '2026-08-20T09:00:00-03:00' }),
+      makeEntry({ title: 'Upcoming', nextFollowUpAt: '2026-08-22T09:00:00-03:00' }),
+      makeEntry({ title: 'Complete', nextFollowUpAt: null }),
+    ]
+
+    expectFilterTitles({ field: 'next follow-up', op: 'before', value: '2026-08-21' }, entries, ['Overdue'], 'Overdue follow-ups')
   })
 
   it('after operator works with ISO date strings in properties', () => {
