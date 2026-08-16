@@ -1,10 +1,45 @@
-<svg width="266" height="363" viewBox="0 0 266 363" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g clip-path="url(#clip0_111_151)">
-<path fill-rule="evenodd" clip-rule="evenodd" d="M119.524 5.31219C126.607 -1.77073 138.117 -1.77073 145.2 5.31219C178.844 40.7268 265.61 147.856 265.61 230.195C265.61 303.68 206.29 363 132.805 363C59.3195 363 0 303.68 0 230.195C0 147.856 86.7659 40.7268 119.524 5.31219ZM59.5947 242.88C58.1619 234.744 50.3952 229.074 42.2195 230.195C34.0438 231.316 28.5932 238.799 30.0259 246.935C37.6847 290.425 72.2734 325.622 116.094 334.485C117.821 334.836 119.552 334.864 121.178 334.641C127.269 333.806 132.289 329.26 133.371 322.934C134.756 314.893 129.25 307.054 121.086 305.401C89.7767 299.057 65.0615 273.923 59.5947 242.88Z" fill="#155DFF"/>
-</g>
-<defs>
-<clipPath id="clip0_111_151">
-<rect width="266" height="363" fill="white"/>
-</clipPath>
-</defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="192" y1="136" x2="832" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2B2D31"/>
+      <stop offset="0.5" stop-color="#1B1D20"/>
+      <stop offset="1" stop-color="#101113"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="512" y1="96" x2="512" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.13"/>
+      <stop offset="0.42" stop-color="#FFFFFF" stop-opacity="0.025"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.28"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="260" y1="472" x2="808" y2="558" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#48A9FF"/>
+      <stop offset="1" stop-color="#155DFF"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="512" y1="480" x2="512" y2="525" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="tile-shadow" x="20" y="20" width="984" height="984" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
+    <filter id="mark-shadow" x="130" y="430" width="770" height="175" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="9" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <clipPath id="line-clip">
+      <rect x="174" y="480" width="342" height="64" rx="32"/>
+    </clipPath>
+  </defs>
+  <g filter="url(#tile-shadow)">
+    <rect x="96" y="96" width="832" height="832" rx="190" fill="url(#tile)"/>
+    <rect x="97" y="97" width="830" height="830" rx="189" stroke="url(#edge)" stroke-width="2"/>
+  </g>
+  <g filter="url(#mark-shadow)">
+    <rect x="174" y="480" width="342" height="64" rx="32" fill="url(#mark)"/>
+    <circle cx="610" cy="512" r="32" fill="url(#mark)"/>
+    <circle cx="720" cy="512" r="32" fill="url(#mark)"/>
+    <circle cx="830" cy="512" r="32" fill="url(#mark)"/>
+    <rect x="174" y="480" width="342" height="31" fill="url(#shine)" clip-path="url(#line-clip)"/>
+    <ellipse cx="600" cy="500" rx="13" ry="9" fill="#FFFFFF" fill-opacity="0.34"/>
+    <ellipse cx="710" cy="500" rx="13" ry="9" fill="#FFFFFF" fill-opacity="0.34"/>
+    <ellipse cx="820" cy="500" rx="13" ry="9" fill="#FFFFFF" fill-opacity="0.34"/>
+  </g>
 </svg>
