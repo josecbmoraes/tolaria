@@ -171,7 +171,8 @@ pub(super) fn count_body_words(content: &str) -> u32 {
 pub(super) fn extract_snippet(content: &str) -> String {
     let without_fm = strip_frontmatter(TextSlice(content));
     let body = without_h1_line(TextSlice(without_fm)).unwrap_or(without_fm);
-    let clean: String = body
+    let without_activity = content_without_first_activity_section(body);
+    let clean: String = without_activity
         .lines()
         .filter(|line| is_snippet_line(TextSlice(line)))
         .map(|line| strip_list_marker(TextSlice(line)))
@@ -183,7 +184,7 @@ pub(super) fn extract_snippet(content: &str) -> String {
         return truncate_with_ellipsis(TextSlice(trimmed), 160);
     }
     // Fallback: collect sub-heading text when no paragraph content exists
-    let heading_text: String = body
+    let heading_text: String = without_activity
         .lines()
         .filter_map(|line| extract_subheading_text(TextSlice(line)))
         .collect::<Vec<&str>>()
@@ -194,6 +195,33 @@ pub(super) fn extract_snippet(content: &str) -> String {
         return String::new();
     }
     truncate_with_ellipsis(TextSlice(heading_trimmed), 160)
+}
+
+/// Remove the first H2 Activity section and its contents, preserving later sections.
+fn content_without_first_activity_section(content: &str) -> String {
+    let mut active_fence = None;
+    let mut skipping_activity = false;
+    let mut activity_removed = false;
+    let mut kept_lines = Vec::new();
+
+    for line in content.lines() {
+        let is_h2 = active_fence.is_none() && is_level_two_heading(line);
+        let is_activity = is_h2 && is_activity_heading(line);
+
+        if is_activity && !activity_removed {
+            skipping_activity = true;
+            activity_removed = true;
+        } else if skipping_activity && is_h2 {
+            skipping_activity = false;
+            kept_lines.push(line);
+        } else if !skipping_activity {
+            kept_lines.push(line);
+        }
+
+        active_fence = next_markdown_fence(line, active_fence);
+    }
+
+    kept_lines.join("\n")
 }
 
 fn without_h1_line(s: TextSlice<'_>) -> Option<&str> {
@@ -349,6 +377,14 @@ struct MarkdownFence {
     length: usize,
 }
 
+fn next_markdown_fence(line: &str, active_fence: Option<MarkdownFence>) -> Option<MarkdownFence> {
+    match active_fence {
+        Some(fence) if !closes_fence(line, fence) => Some(fence),
+        Some(_) => None,
+        None => read_fence(line),
+    }
+}
+
 /// Find the earliest valid follow-up in closed Activity line-record fences.
 pub(super) fn extract_next_follow_up_at(content: &str) -> Option<String> {
     let lines: Vec<&str> = content.lines().collect();
@@ -396,18 +432,29 @@ pub(super) fn extract_next_follow_up_at(content: &str) -> Option<String> {
         let Some(closing_index) = find_closing_fence(&lines, index, fence) else {
             break;
         };
-        if let Some((timestamp, source)) = read_follow_up_at(&lines[index + 1..closing_index]) {
-            if earliest
-                .as_ref()
-                .map_or(true, |(current, _)| timestamp < *current)
-            {
-                earliest = Some((timestamp, source));
-            }
-        }
+        keep_earliest_follow_up(
+            &mut earliest,
+            read_follow_up_at(&lines[index + 1..closing_index]),
+        );
         index = closing_index + 1;
     }
 
     earliest.map(|(_, source)| source)
+}
+
+fn keep_earliest_follow_up(
+    earliest: &mut Option<(DateTime<FixedOffset>, String)>,
+    candidate: Option<(DateTime<FixedOffset>, String)>,
+) {
+    let Some((timestamp, source)) = candidate else {
+        return;
+    };
+    if earliest
+        .as_ref()
+        .map_or(true, |(current, _)| timestamp < *current)
+    {
+        *earliest = Some((timestamp, source));
+    }
 }
 
 fn is_activity_heading(line: &str) -> bool {

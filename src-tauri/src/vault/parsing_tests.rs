@@ -183,6 +183,13 @@ fn test_extract_snippet_no_content() {
 }
 
 #[test]
+fn test_extract_snippet_omits_activity_record_metadata() {
+    let content = "---\ntype: Organização\nrelated_to: \"[[Projetos/Arkyon/arkyon]]\"\n---\n# 3D KL impressão 3D\n\n## Activity\n\n```line-record\nid: 10bc6eea-1d9c-47a6-81b5-5004ed565b18\ntype: update\noccurred_at: 2026-08-13T10:12:00-03:00\nfollow_up_at: 2026-08-17T10:12:00-03:00\n---\nEnviei a lista de hardwares para aquisição.\nEle Montou um grupo com o responsável para fazer a modelagem 3D.\nFicou de estudar o material enviado.\n```";
+
+    assert_eq!(extract_snippet(content), "");
+}
+
+#[test]
 fn test_extract_snippet_code_fence_delimiters_skipped() {
     let content = "# Title\n\n```rust\nfn main() {}\n```\n\nReal content here.";
     let snippet = extract_snippet(content);

@@ -22,7 +22,8 @@ use super::{is_md_file, parse_md_file, parse_non_md_file, scan_vault, VaultEntry
 /// Bump this when VaultEntry fields change to force a full rescan.
 /// v12: fix gray_matter YAML sanitization (unquoted colons / hash comments in list items)
 /// v14: preserve scalar-array custom frontmatter properties in VaultEntry
-const CACHE_VERSION: u32 = 14;
+/// v15: reparse snippets to omit the first Activity section
+const CACHE_VERSION: u32 = 15;
 const CACHE_WRITE_LOCK_STALE_SECS: u64 = 30;
 
 #[cfg(test)]
@@ -467,6 +468,39 @@ fn sync_parent_directory(_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn write_temp_cache(final_path: &Path, cache: &VaultCache) -> Result<PathBuf, String> {
+    let data = serde_json::to_vec(cache).map_err(|error| {
+        format!(
+            "Failed to serialize cache {}: {}",
+            final_path.display(),
+            error
+        )
+    })?;
+    let tmp_path = cache_temp_path(final_path);
+    let mut tmp_file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp_path)
+        .map_err(|error| {
+            format!(
+                "Failed to create temp cache file {}: {}",
+                tmp_path.display(),
+                error
+            )
+        })?;
+
+    if let Err(error) = tmp_file.write_all(&data).and_then(|_| tmp_file.sync_all()) {
+        remove_cache_file(&tmp_path, "temp cache file");
+        return Err(format!(
+            "Failed to flush temp cache file {}: {}",
+            tmp_path.display(),
+            error
+        ));
+    }
+
+    Ok(tmp_path)
+}
+
 /// Replace the cache file using a temp file + rename, but only if the on-disk
 /// cache still matches the version we loaded earlier.
 fn write_cache(
@@ -493,36 +527,7 @@ fn write_cache(
     }
 
     ensure_cache_parent_dir(&final_path)?;
-
-    let data = serde_json::to_vec(cache).map_err(|error| {
-        format!(
-            "Failed to serialize cache {}: {}",
-            final_path.display(),
-            error
-        )
-    })?;
-    let tmp_path = cache_temp_path(&final_path);
-    let mut tmp_file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&tmp_path)
-        .map_err(|error| {
-            format!(
-                "Failed to create temp cache file {}: {}",
-                tmp_path.display(),
-                error
-            )
-        })?;
-
-    if let Err(error) = tmp_file.write_all(&data).and_then(|_| tmp_file.sync_all()) {
-        remove_cache_file(&tmp_path, "temp cache file");
-        return Err(format!(
-            "Failed to flush temp cache file {}: {}",
-            tmp_path.display(),
-            error
-        ));
-    }
-    drop(tmp_file);
+    let tmp_path = write_temp_cache(&final_path, cache)?;
 
     if let Err(error) = fs::rename(&tmp_path, &final_path) {
         remove_cache_file(&tmp_path, "temp cache file");
@@ -1607,6 +1612,32 @@ mod tests {
             entries[0].archived,
             "stale cache with old version must be invalidated, re-parsing 'Archived: Yes' as true"
         );
+    }
+
+    #[test]
+    fn test_stale_cache_version_forces_activity_snippet_rescan() {
+        let (_lock, _cache_tmp, dir) = setup_git_vault();
+        let vault = dir.path();
+        let content = "---\ntype: Organização\n---\n# 3D KL impressão 3D\n\n## Activity\n\n```line-record\nid: record-1\ntype: update\n---\nActivity body.\n```";
+
+        create_test_file(vault, "organization.md", content);
+        git_add_commit(vault, "init");
+
+        let workspace = resolve_git_workspace(vault).unwrap();
+        let hash = git_head_hash(&workspace).unwrap();
+        let mut stale_entry = parse_md_file(&vault.join("organization.md"), None).unwrap();
+        stale_entry.snippet = "id: record-1 type: update Activity body.".to_string();
+        let stale_cache = VaultCache {
+            version: 14,
+            vault_path: vault.to_string_lossy().to_string(),
+            commit_hash: hash,
+            entries: vec![stale_entry],
+        };
+        write_cache(vault, &stale_cache, None).unwrap();
+
+        let entries = scan_vault_cached(vault).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].snippet, "");
     }
 
     #[test]
